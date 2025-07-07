@@ -7,17 +7,12 @@ Features LangChain agent framework with custom tools for sophisticated customer 
 import pandas as pd
 import numpy as np
 import sys
-import os
 import traceback
 import platform
 from typing import Dict, Any, Optional, List
 import warnings
 
 warnings.filterwarnings('ignore')
-# Suppress specific LangChain deprecation warnings
-warnings.filterwarnings('ignore', category=DeprecationWarning, module='langchain')
-warnings.filterwarnings('ignore', message='.*LangChain agents.*')
-warnings.filterwarnings('ignore', message='.*Chain.run.*')
 
 
 def debug_environment():
@@ -125,7 +120,7 @@ class CustomerAnalyzerTool:
                   'money' in query_lower or 'financial' in query_lower or
                   'profitable' in query_lower or 'worth' in query_lower):
                 return self._analyze_spending()
-            elif 'age' in query_lower or 'demographic' in query_lower:
+            elif 'age' in query_lower or 'demographic' in query_lower or 'gender' in query_lower:
                 return self._analyze_demographics()
             else:
                 return self._general_overview()
@@ -185,28 +180,6 @@ class CustomerAnalyzerTool:
                 low_eng_rate = len(low_engagement) / len(churned_customers) * 100
                 analysis += f"• {low_eng_rate:.1f}% of churned customers had below-average engagement\n"
 
-            # Age-based insights
-            if 'age' in self.df.columns:
-                age_groups = {
-                    'Young (<30)': churned_customers[churned_customers['age'] < 30],
-                    'Middle (30-49)': churned_customers[
-                        (churned_customers['age'] >= 30) & (churned_customers['age'] < 50)],
-                    'Senior (50+)': churned_customers[churned_customers['age'] >= 50]
-                }
-
-                highest_churn_group = max(age_groups.keys(), key=lambda x: len(age_groups[x]))
-                analysis += f"• Highest churn: {highest_churn_group} with {len(age_groups[highest_churn_group])} customers\n"
-
-            analysis += f"""
-🚀 IMMEDIATE ACTION PLAN:
-• TARGET: {len(low_sat_churned) if 'satisfaction_score' in self.df.columns else 'N/A'} low-satisfaction customers for immediate intervention
-• FOCUS: Improve satisfaction by {satisfaction_gap:.1f} points to match active customer levels
-• MONITOR: {len(active_customers)} active customers showing similar risk patterns
-• ROI: Potential ${potential_savings:,.2f} revenue recovery with 50% churn reduction
-
-⚡ Next Steps: Implement satisfaction surveys, personalized retention campaigns, and engagement programs.
-"""
-
             return analysis
 
         except Exception as e:
@@ -247,16 +220,6 @@ class CustomerAnalyzerTool:
                 analysis += f"• High Satisfaction: {len(high_satisfaction)} customers ({len(high_satisfaction) / len(self.df) * 100:.1f}%)\n"
                 analysis += f"• Medium Satisfaction: {len(medium_satisfaction)} customers ({len(medium_satisfaction) / len(self.df) * 100:.1f}%)\n"
                 analysis += f"• Low Satisfaction: {len(low_satisfaction)} customers ({len(low_satisfaction) / len(self.df) * 100:.1f}%)\n\n"
-
-            # Engagement-based segmentation
-            if 'monthly_visits' in self.df.columns:
-                engagement_median = self.df['monthly_visits'].median()
-                high_engagement = self.df[self.df['monthly_visits'] > engagement_median]
-                low_engagement = self.df[self.df['monthly_visits'] <= engagement_median]
-
-                analysis += f"📈 Engagement Segments:\n"
-                analysis += f"• High Engagement: {len(high_engagement)} customers ({len(high_engagement) / len(self.df) * 100:.1f}%)\n"
-                analysis += f"• Low Engagement: {len(low_engagement)} customers ({len(low_engagement) / len(self.df) * 100:.1f}%)\n\n"
 
             return analysis
 
@@ -398,71 +361,13 @@ class CustomerAnalyzerTool:
             analysis += f"• Medium Value: {len(medium_spenders)} customers → ${medium_revenue:,.2f} ({medium_revenue / total_revenue * 100:.1f}% of revenue)\n"
             analysis += f"• Low Value: {len(low_spenders)} customers → ${low_revenue:,.2f} ({low_revenue / total_revenue * 100:.1f}% of revenue)\n"
 
-            # Calculate average spend per segment
-            analysis += f"""
-🎯 SEGMENT PERFORMANCE:
-• VIP Average: ${vip_customers['total_spent'].mean():.2f} per customer
-• High Value Average: ${high_spenders['total_spent'].mean():.2f} per customer  
-• Medium Value Average: ${medium_spenders['total_spent'].mean():.2f} per customer
-• Low Value Average: ${low_spenders['total_spent'].mean():.2f} per customer
-"""
-
-            # Business opportunities
-            pareto_customers = len(vip_customers) + len(high_spenders)
-            pareto_revenue = vip_revenue + high_revenue
-            pareto_percentage = pareto_revenue / total_revenue * 100
-
-            analysis += f"""
-💡 BUSINESS OPPORTUNITIES:
-• PARETO PRINCIPLE: {pareto_customers} customers ({pareto_customers / len(self.df) * 100:.1f}%) generate ${pareto_revenue:,.2f} ({pareto_percentage:.1f}%) of total revenue
-• UPSELL TARGET: {len(medium_spenders)} medium-value customers could increase revenue by ${(high_spenders['total_spent'].mean() - medium_spenders['total_spent'].mean()) * len(medium_spenders):,.2f}
-• RETENTION FOCUS: Protect top {len(vip_customers)} VIP customers (worth ${vip_revenue:,.2f} annually)
-"""
-
-            # Gender analysis if available
-            if 'gender' in self.df.columns:
-                male_avg = self.df[self.df['gender'] == 'M']['total_spent'].mean()
-                female_avg = self.df[self.df['gender'] == 'F']['total_spent'].mean()
-                gender_diff = abs(male_avg - female_avg)
-                higher_gender = 'Male' if male_avg > female_avg else 'Female'
-
-                analysis += f"""
-👥 GENDER INSIGHTS:
-• Male Average Spend: ${male_avg:.2f}
-• Female Average Spend: ${female_avg:.2f}
-• {higher_gender} customers spend ${gender_diff:.2f} more on average
-• OPPORTUNITY: Target lower-spending gender with personalized campaigns
-"""
-
-            # Churn impact on revenue
-            if 'churn' in self.df.columns:
-                churned_revenue_lost = self.df[self.df['churn'] == 1]['total_spent'].sum()
-                at_risk_revenue = self.df[self.df['churn'] == 0]['total_spent'].sum()
-
-                analysis += f"""
-⚠️ REVENUE AT RISK:
-• Lost Revenue: ${churned_revenue_lost:,.2f} from churned customers
-• Active Revenue: ${at_risk_revenue:,.2f} needs protection
-• Churn Prevention ROI: Every 1% churn reduction = ${at_risk_revenue * 0.01:,.2f} revenue saved
-"""
-
-            analysis += f"""
-🚀 ACTION PLAN:
-1. IMMEDIATE: Launch VIP retention program for top {len(vip_customers)} customers
-2. GROWTH: Upsell {len(medium_spenders)} medium-value customers (+${(high_spenders['total_spent'].mean() - medium_spenders['total_spent'].mean()) * len(medium_spenders):,.0f} potential)
-3. ENGAGEMENT: Re-activate {len(low_spenders)} low-value customers with targeted offers
-4. MONITOR: Track monthly spend changes in each segment
-
-💰 REVENUE IMPACT: Successfully executing this plan could increase total revenue by 15-25%.
-"""
-
             return analysis
 
         except Exception as e:
             return f"❌ Spending analysis error: {str(e)}"
 
     def _analyze_demographics(self) -> str:
-        """Analyze customer demographics"""
+        """Analyze customer demographics with gender insights"""
         try:
             analysis = "👥 DEMOGRAPHIC ANALYSIS:\n\n"
 
@@ -485,9 +390,58 @@ class CustomerAnalyzerTool:
 
             if 'gender' in self.df.columns:
                 gender_dist = self.df['gender'].value_counts()
-                analysis += f"👫 Gender Distribution:\n"
+                analysis += f"👫 GENDER ANALYSIS:\n"
+                analysis += f"📊 Gender Distribution:\n"
                 for gender, count in gender_dist.items():
                     analysis += f"• {gender}: {count} customers ({count / len(self.df) * 100:.1f}%)\n"
+
+                # Gender-based behavioral analysis
+                if 'total_spent' in self.df.columns:
+                    analysis += f"\n💰 Gender Spending Patterns:\n"
+                    for gender in gender_dist.index:
+                        gender_data = self.df[self.df['gender'] == gender]
+                        avg_spend = gender_data['total_spent'].mean()
+                        total_spend = gender_data['total_spent'].sum()
+                        analysis += f"• {gender}: Average ${avg_spend:.2f}, Total ${total_spend:,.2f}\n"
+
+                    # Gender spending comparison
+                    if len(gender_dist) == 2:
+                        genders = list(gender_dist.index)
+                        spend_1 = self.df[self.df['gender'] == genders[0]]['total_spent'].mean()
+                        spend_2 = self.df[self.df['gender'] == genders[1]]['total_spent'].mean()
+                        diff = abs(spend_1 - spend_2)
+                        higher_gender = genders[0] if spend_1 > spend_2 else genders[1]
+                        analysis += f"• GENDER DIFFERENCE: {higher_gender} customers spend ${diff:.2f} more on average\n"
+
+                # Gender satisfaction analysis
+                if 'satisfaction_score' in self.df.columns:
+                    analysis += f"\n😊 Gender Satisfaction Patterns:\n"
+                    for gender in gender_dist.index:
+                        gender_data = self.df[self.df['gender'] == gender]
+                        avg_satisfaction = gender_data['satisfaction_score'].mean()
+                        analysis += f"• {gender}: Average satisfaction {avg_satisfaction:.2f}/5.0\n"
+
+                # Gender churn analysis
+                if 'churn' in self.df.columns:
+                    analysis += f"\n⚠️ Gender Churn Analysis:\n"
+                    for gender in gender_dist.index:
+                        gender_data = self.df[self.df['gender'] == gender]
+                        churn_rate = gender_data['churn'].mean() * 100
+                        analysis += f"• {gender}: {churn_rate:.1f}% churn rate\n"
+
+                    # Gender churn comparison
+                    if len(gender_dist) == 2:
+                        genders = list(gender_dist.index)
+                        churn_1 = self.df[self.df['gender'] == genders[0]]['churn'].mean() * 100
+                        churn_2 = self.df[self.df['gender'] == genders[1]]['churn'].mean() * 100
+                        diff = abs(churn_1 - churn_2)
+                        higher_churn_gender = genders[0] if churn_1 > churn_2 else genders[1]
+                        analysis += f"• CHURN DIFFERENCE: {higher_churn_gender} customers have {diff:.1f}% higher churn rate\n"
+
+                analysis += f"\n🎯 GENDER INSIGHTS SUMMARY:\n"
+                analysis += f"• Total customers analyzed: {len(self.df):,}\n"
+                analysis += f"• Gender groups identified: {len(gender_dist)}\n"
+                analysis += f"• Key differences found in spending, satisfaction, and churn patterns\n"
 
             return analysis
 
@@ -590,23 +544,6 @@ class ProductCategoryAnalyzerTool:
    • Avg Spend per Customer: ${avg_spend:.2f}
 """
 
-            # Category performance insights
-            top_category = category_revenue.index[0]
-            top_revenue = category_revenue.iloc[0]['sum']
-            top_percentage = (top_revenue / total_revenue) * 100
-
-            analysis += f"""
-🔍 KEY INSIGHTS:
-• LEADING CATEGORY: {top_category} dominates with ${top_revenue:,.2f} ({top_percentage:.1f}% of revenue)
-• REVENUE CONCENTRATION: Top 3 categories generate ${category_revenue.head(3)['sum'].sum():,.2f} ({category_revenue.head(3)['sum'].sum() / total_revenue * 100:.1f}% of total)
-• CATEGORY COUNT: {len(category_revenue)} different product categories
-
-🚀 RECOMMENDATIONS:
-• FOCUS: Invest more in {top_category} category (highest revenue generator)
-• EXPAND: Cross-sell other categories to {top_category} customers
-• OPTIMIZE: Improve marketing for underperforming categories
-"""
-
             return analysis
 
         except Exception as e:
@@ -637,16 +574,6 @@ Category Performance Metrics:
                 analysis += f"  • Customers: {customers:,}\n"
                 analysis += f"  • Avg Spend: ${avg_spend:.2f}\n"
 
-                if 'satisfaction_score' in self.df.columns:
-                    satisfaction = category_stats.loc[category, ('satisfaction_score', 'mean')]
-                    if not pd.isna(satisfaction):
-                        analysis += f"  • Satisfaction: {satisfaction:.2f}/5.0\n"
-
-                if 'churn' in self.df.columns:
-                    churn_rate = category_stats.loc[category, ('churn', 'mean')] * 100
-                    if not pd.isna(churn_rate):
-                        analysis += f"  • Churn Rate: {churn_rate:.1f}%\n"
-
             return analysis
 
         except Exception as e:
@@ -667,13 +594,6 @@ Category Performance Metrics:
             for i, (category, count) in enumerate(category_popularity.head().items(), 1):
                 percentage = (count / total_customers) * 100
                 analysis += f"{i}. {category}: {count:,} customers ({percentage:.1f}%)\n"
-
-            analysis += f"""
-🔍 INSIGHTS:
-• Most Popular: {category_popularity.index[0]} with {category_popularity.iloc[0]:,} customers
-• Category Spread: {len(category_popularity)} different categories available
-• Market Share: Top category captures {category_popularity.iloc[0] / total_customers * 100:.1f}% of customers
-"""
 
             return analysis
 
@@ -760,34 +680,6 @@ class StatisticalAnalyzerTool:
                     strength = "Strong" if abs(corr) > 0.3 else "Moderate" if abs(corr) > 0.1 else "Weak"
                     analysis += f"• {col}: {corr:.3f} ({direction}, {strength})\n"
 
-                analysis += "\n"
-
-            # General correlation insights
-            analysis += "🔍 Key Correlation Insights:\n"
-
-            # Find strongest correlations (excluding perfect correlations with self)
-            corr_matrix = self.df[numeric_cols].corr()
-
-            strong_correlations = []
-            for i in range(len(corr_matrix.columns)):
-                for j in range(i + 1, len(corr_matrix.columns)):
-                    col1 = corr_matrix.columns[i]
-                    col2 = corr_matrix.columns[j]
-                    corr_val = corr_matrix.iloc[i, j]
-
-                    if abs(corr_val) > 0.3:  # Strong correlation threshold
-                        strong_correlations.append((col1, col2, corr_val))
-
-            # Sort by correlation strength
-            strong_correlations.sort(key=lambda x: abs(x[2]), reverse=True)
-
-            if strong_correlations:
-                for col1, col2, corr in strong_correlations[:5]:  # Top 5
-                    direction = "positively" if corr > 0 else "negatively"
-                    analysis += f"• {col1} and {col2} are {direction} correlated ({corr:.3f})\n"
-            else:
-                analysis += "• No strong correlations (>0.3) found between variables\n"
-
             return analysis
 
         except Exception as e:
@@ -811,24 +703,7 @@ class StatisticalAnalyzerTool:
                     analysis += f"• Mean: {stats['mean']:.2f}\n"
                     analysis += f"• Median: {stats['50%']:.2f}\n"
                     analysis += f"• Std Dev: {stats['std']:.2f}\n"
-                    analysis += f"• Range: {stats['min']:.2f} - {stats['max']:.2f}\n"
-
-                    # Skewness analysis
-                    try:
-                        from scipy import stats as scipy_stats
-                        skewness = scipy_stats.skew(self.df[col].dropna())
-                        if abs(skewness) > 1:
-                            skew_desc = "highly skewed"
-                        elif abs(skewness) > 0.5:
-                            skew_desc = "moderately skewed"
-                        else:
-                            skew_desc = "approximately normal"
-
-                        analysis += f"• Distribution: {skew_desc} (skewness: {skewness:.2f})\n"
-                    except ImportError:
-                        pass
-
-                    analysis += "\n"
+                    analysis += f"• Range: {stats['min']:.2f} - {stats['max']:.2f}\n\n"
 
             return analysis
 
@@ -849,51 +724,12 @@ class StatisticalAnalyzerTool:
 
             analysis = "🤖 PREDICTIVE ANALYSIS:\n\n"
 
-            try:
-                from sklearn.ensemble import RandomForestClassifier
-                from sklearn.model_selection import train_test_split
-                from sklearn.metrics import accuracy_score, classification_report
-
-                # Prepare data
-                X = self.df[feature_cols].fillna(self.df[feature_cols].median())
-                y = self.df['churn']
-
-                # Split data
-                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-
-                # Train model
-                rf = RandomForestClassifier(n_estimators=100, random_state=42)
-                rf.fit(X_train, y_train)
-
-                # Predictions
-                y_pred = rf.predict(X_test)
-                accuracy = accuracy_score(y_test, y_pred)
-
-                analysis += f"🎯 Model Performance:\n"
-                analysis += f"• Accuracy: {accuracy:.3f} ({accuracy * 100:.1f}%)\n"
-                analysis += f"• Training samples: {len(X_train)}\n"
-                analysis += f"• Test samples: {len(X_test)}\n\n"
-
-                # Feature importance
-                feature_importance = pd.DataFrame({
-                    'feature': feature_cols,
-                    'importance': rf.feature_importances_
-                }).sort_values('importance', ascending=False)
-
-                analysis += "📊 Feature Importance (Top 5):\n"
-                for idx, row in feature_importance.head().iterrows():
-                    analysis += f"• {row['feature']}: {row['importance']:.3f}\n"
-
-            except ImportError:
-                analysis += "❌ Scikit-learn not available for advanced modeling\n"
-                analysis += "📊 Basic predictive insights based on correlations:\n"
-
-                # Fallback to correlation analysis
-                for col in feature_cols:
-                    corr = self.df[col].corr(self.df['churn'])
-                    if abs(corr) > 0.1:
-                        impact = "increases" if corr > 0 else "decreases"
-                        analysis += f"• Higher {col} {impact} churn probability (corr: {corr:.3f})\n"
+            # Fallback to correlation analysis
+            for col in feature_cols:
+                corr = self.df[col].corr(self.df['churn'])
+                if abs(corr) > 0.1:
+                    impact = "increases" if corr > 0 else "decreases"
+                    analysis += f"• Higher {col} {impact} churn probability (corr: {corr:.3f})\n"
 
             return analysis
 
@@ -924,7 +760,6 @@ class StatisticalAnalyzerTool:
                 if col not in ['customer_id']:
                     mean_val = key_stats.loc['mean', col]
                     std_val = key_stats.loc['std', col]
-
                     analysis += f"• {col}: μ={mean_val:.2f}, σ={std_val:.2f}\n"
 
             return analysis
@@ -939,51 +774,25 @@ def setup_langchain_agent(api_key: str, df: pd.DataFrame):
     """
     try:
         # Import LangChain components with error handling
-        try:
-            from langchain.agents import initialize_agent, Tool, AgentType
-            from langchain_openai import OpenAI
-            from langchain.memory import ConversationBufferMemory
-        except ImportError:
-            # Fallback for newer LangChain versions
-            from langchain.agents import create_react_agent, AgentExecutor
-            from langchain.tools import Tool
-
-        # Always import ChatOpenAI as fallback
-        try:
-            from langchain_openai import ChatOpenAI
-        except ImportError:
-            pass
-
-        # Try to import PythonREPLTool
-        try:
-            from langchain_experimental.tools import PythonREPLTool
-            use_python_tool = True
-        except ImportError:
-            use_python_tool = False
+        from langchain.agents import initialize_agent, Tool, AgentType
+        from langchain_openai import OpenAI
+        from langchain.memory import ConversationBufferMemory
+        from langchain_experimental.tools import PythonREPLTool
 
         # Initialize LLM with proper configuration
-        try:
-            from langchain_openai import OpenAI
-            llm = OpenAI(
-                temperature=0,
-                openai_api_key=api_key,
-                model_name="gpt-3.5-turbo-instruct",
-                max_tokens=1000,
-                request_timeout=60
-            )
-        except:
-            # Fallback to ChatOpenAI for newer versions
-            try:
-                from langchain_openai import ChatOpenAI
-                llm = ChatOpenAI(
-                    temperature=0,
-                    openai_api_key=api_key,
-                    model_name="gpt-3.5-turbo",
-                    max_tokens=1000,
-                    request_timeout=60
-                )
-            except Exception as llm_error:
-                return f"❌ LLM initialization error: {str(llm_error)}"
+        llm = OpenAI(
+            temperature=0,
+            openai_api_key=api_key,
+            model_name="gpt-3.5-turbo-instruct",  # Use instruct model for LangChain
+            max_tokens=1000,
+            request_timeout=60
+        )
+
+        # Initialize memory
+        memory = ConversationBufferMemory(
+            memory_key="chat_history",
+            return_messages=True
+        )
 
         # Create custom tools
         customer_tool = CustomerAnalyzerTool(df)
@@ -1006,33 +815,21 @@ def setup_langchain_agent(api_key: str, df: pd.DataFrame):
                 name=product_tool.name,
                 func=product_tool.run,
                 description=product_tool.description
-            )
+            ),
+            PythonREPLTool()  # For advanced calculations
         ]
 
-        # Add Python REPL tool if available
-        if use_python_tool:
-            tools.append(PythonREPLTool())
-
-        # Initialize agent with simpler, more reliable configuration
-        try:
-            agent = initialize_agent(
-                tools=tools,
-                llm=llm,
-                agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-                verbose=False,
-                max_iterations=2,
-                handle_parsing_errors=True,
-                early_stopping_method="generate"
-            )
-        except:
-            # Fallback with most basic configuration
-            agent = initialize_agent(
-                tools=tools,
-                llm=llm,
-                agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-                verbose=False,
-                max_iterations=1
-            )
+        # Initialize agent with error handling
+        agent = initialize_agent(
+            tools=tools,
+            llm=llm,
+            agent=AgentType.CONVERSATIONAL_REACT_DESCRIPTION,
+            memory=memory,
+            verbose=True,
+            max_iterations=5,
+            early_stopping_method="generate",
+            handle_parsing_errors=True
+        )
 
         return agent
 
@@ -1054,8 +851,8 @@ def analyze_with_langchain(question: str, df: pd.DataFrame, api_key: str, respon
         agent = setup_langchain_agent(api_key, df)
 
         if isinstance(agent, str):
-            # LangChain failed, fallback to direct analysis
-            return f"🔄 **LangChain Unavailable - Using Direct Analysis:**\n\n{analyze_with_direct_openai(question, df, api_key, response_style)}"
+            # Error in setup
+            return f"❌ LangChain setup failed: {agent}"
 
         # Define response style for LangChain
         style_instructions = {
@@ -1078,35 +875,74 @@ DETAIL LEVEL: Include all statistical measures, detailed methodology, and quanti
 
         current_style_instruction = style_instructions.get(response_style, style_instructions['smart'])
 
-        # Simplified, focused context for reliable agent execution
-        context = f"""Analyze customer data to answer: "{question}"
+        # Enhanced context with specific instructions for actionable insights
+        context = f"""
+You are a SENIOR CUSTOMER ANALYTICS CONSULTANT providing actionable business insights.
 
-Dataset: {len(df):,} customers with columns {list(df.columns)}
+{current_style_instruction}
 
-Use the appropriate tool:
-- Customer Data Analyzer: for churn, satisfaction, demographics, segments
-- Statistical Analyzer: for correlations, distributions, statistical analysis  
-- Product Category Analyzer: for product categories, revenue by category
+DATASET CONTEXT:
+- Customer Database: {len(df):,} customers
+- Columns Available: {list(df.columns)}
+- Business Metrics Overview:
+"""
 
-Always use a tool first, then provide insights based on the tool output."""
+        if 'churn' in df.columns:
+            churn_rate = df['churn'].mean() * 100
+            context += f"  • Churn Rate: {churn_rate:.1f}% ({'CRITICAL' if churn_rate > 20 else 'MODERATE' if churn_rate > 10 else 'GOOD'})\n"
+        if 'total_spent' in df.columns:
+            total_revenue = df['total_spent'].sum()
+            avg_spend = df['total_spent'].mean()
+            context += f"  • Total Revenue: ${total_revenue:,.2f}\n"
+            context += f"  • Avg Customer Value: ${avg_spend:.2f}\n"
+        if 'satisfaction_score' in df.columns:
+            avg_satisfaction = df['satisfaction_score'].mean()
+            context += f"  • Avg Satisfaction: {avg_satisfaction:.2f}/5.0 ({'EXCELLENT' if avg_satisfaction >= 4.5 else 'GOOD' if avg_satisfaction >= 4.0 else 'NEEDS IMPROVEMENT'})\n"
 
-        # Run the agent with detailed error reporting
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                result = agent.run(context)
-                
-            # Ensure we got a result
-            if not result or len(str(result).strip()) < 10:
-                return f"🔄 **LangChain Agent returned empty result - Using Direct Analysis:**\n\n{analyze_with_direct_openai(question, df, api_key, response_style)}"
-                
-        except Exception as agent_error:
-            # Show the actual error for debugging, then fallback
-            error_msg = str(agent_error)
-            if "API key" in error_msg or "401" in error_msg:
-                return f"🔄 **LangChain Agent API Error - Using Direct Analysis:**\n\n{analyze_with_direct_openai(question, df, api_key, response_style)}"
-            else:
-                return f"🔄 **LangChain Agent Error ({error_msg[:100]}) - Using Direct Analysis:**\n\n{analyze_with_direct_openai(question, df, api_key, response_style)}"
+        context += f"""
+
+ANALYSIS REQUIREMENT:
+Question: "{question}"
+
+TOOL SELECTION GUIDELINES:
+- For PRODUCT CATEGORY questions (product revenue, top categories, category performance): Use "Product Category Analyzer"
+- For CUSTOMER BEHAVIOR questions (churn, segments, demographics, satisfaction): Use "Customer Data Analyzer"  
+- For STATISTICAL questions (correlations, distributions): Use "Statistical Analyzer"
+- For CALCULATIONS: Use "Python REPL Tool"
+
+CRITICAL INSTRUCTIONS:
+1. ALWAYS USE THE APPROPRIATE TOOL FIRST - never answer without using tools
+2. **MANDATORY**: COPY AND PASTE THE COMPLETE TOOL OUTPUT into your response exactly as provided
+3. DO NOT SUMMARIZE OR PARAPHRASE the tool output - include ALL statistics, percentages, and insights
+4. After presenting the complete tool results, add your own strategic business interpretation
+5. Use ONLY the specific numbers and insights from the tool outputs
+6. Calculate additional FINANCIAL IMPACT based on tool data
+7. Identify OPPORTUNITIES and RISKS from the tool analysis
+8. Suggest IMPLEMENTATION STRATEGIES based on tool findings
+
+**RESPONSE FORMAT REQUIREMENT:**
+```
+[TOOL NAME] ANALYSIS:
+[PASTE COMPLETE TOOL OUTPUT HERE - DO NOT MODIFY OR SUMMARIZE]
+
+STRATEGIC BUSINESS INTERPRETATION:
+[Your analysis and recommendations based on the tool output]
+
+IMMEDIATE ACTION PLAN:
+[Specific next steps based on the data]
+```
+
+ABSOLUTE REQUIREMENTS:
+- NEVER give generic responses like "it is clear that..." or "it is recommended to..."
+- ALWAYS include the specific statistics from tool output (percentages, counts, dollar amounts)
+- INCLUDE ALL sections from the tool output (statistics, distribution, impact analysis, etc.)
+- DO NOT create your own analysis without first presenting the complete tool results
+
+ANSWER THE EXACT QUESTION ASKED. If asked about satisfaction, use Customer Data Analyzer for satisfaction insights and present its complete output.
+"""
+
+        # Run the agent with enhanced context  
+        result = agent.run(context)
 
         # Format the result based on response style
         if response_style == 'concise':
@@ -1136,8 +972,7 @@ Always use a tool first, then provide insights based on the tool output."""
         return formatted_result
 
     except Exception as e:
-        # Complete fallback to direct OpenAI if everything fails
-        return f"🔄 **LangChain Error - Using Direct Analysis:**\n\n{analyze_with_direct_openai(question, df, api_key, response_style)}"
+        return f"❌ LangChain analysis error: {str(e)}\n\n{traceback.format_exc()}"
 
 
 def analyze_with_direct_openai(question: str, df: pd.DataFrame, api_key: str, response_style: str = 'smart'):
@@ -1316,9 +1151,7 @@ def test_both_methods(api_key: str):
 
     print("🧪 Testing LangChain Method:")
     print("=" * 50)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        langchain_result = analyze_with_langchain(question, test_df, api_key)
+    langchain_result = analyze_with_langchain(question, test_df, api_key)
     print(langchain_result)
 
     print("\n🧪 Testing Direct OpenAI Method:")
@@ -1328,11 +1161,11 @@ def test_both_methods(api_key: str):
 
 
 if __name__ == "__main__":
-    # Quick test - only run interactive input in terminal environments
+    # Quick test
     print("🔧 AI Analyzer Module Test")
     print("Debug Environment:")
     print(debug_environment())
-    
+
     # Check if we have an interactive terminal
     try:
         # This will only work if we have a real interactive terminal
@@ -1346,4 +1179,4 @@ if __name__ == "__main__":
             print("✅ Module loaded successfully. Add API key to test AI functions.")
     except:
         # If anything fails, just show the success message
-        print("✅ Module loaded successfully. Add API key to test AI functions.")
+        print("✅ Module loaded successfully. Add API key to test AI functions.") 
