@@ -424,43 +424,29 @@ def display_ai_chat(df):
     # Set default response style since we removed the selector
     st.session_state.chat_mode = "smart"
 
-    # API Key input - check multiple sources in priority order
-    # 1. Environment variable (local .env file)
-    env_api_key = os.getenv("OPENAI_API_KEY", "")
-    # 2. Streamlit secrets (deployment)
-    secrets_api_key = st.secrets.get("OPENAI_API_KEY", "") if hasattr(st, 'secrets') else ""
-    # 3. Use the first available key
-    default_api_key = env_api_key or secrets_api_key
+    # Built-in API Key - No user input required!
+    # Replace YOUR_API_KEY_HERE with your actual OpenAI API key for local development
+    BUILT_IN_API_KEY = "YOUR_API_KEY_HERE"
     
-    # Show different UI based on whether key is pre-configured
-    if default_api_key:
-        st.success("✅ API Key loaded automatically from configuration")
-        api_key = default_api_key
-        st.session_state.openai_api_key = default_api_key
-        
-        # Optional: Allow override
-        with st.expander("🔧 Override API Key (Optional)"):
-            manual_api_key = st.text_input(
-                "Custom OpenAI API Key:",
-                type="password",
-                placeholder="Leave empty to use configured key",
-                help="Only enter if you want to use a different API key"
-            )
-            if manual_api_key:
-                api_key = manual_api_key
-                st.session_state.openai_api_key = manual_api_key
+    # For deployment: also check environment variables and secrets
+    deployment_key = ""
+    try:
+        deployment_key = os.getenv("OPENAI_API_KEY", "")
+        if not deployment_key and hasattr(st, 'secrets'):
+            deployment_key = st.secrets.get("OPENAI_API_KEY", "")
+    except Exception:
+        deployment_key = ""
+    
+    # Use deployment key if available, otherwise use built-in key
+    api_key = deployment_key or BUILT_IN_API_KEY
+    st.session_state.openai_api_key = api_key
+    
+    # Show appropriate message
+    if api_key == "YOUR_API_KEY_HERE":
+        st.warning("⚠️ Please replace YOUR_API_KEY_HERE in the code with your actual OpenAI API key")
+        st.info("Edit app.py around line 430 and replace 'YOUR_API_KEY_HERE' with your real API key")
     else:
-        # No pre-configured key, require manual input
-        st.info("🔑 Please enter your OpenAI API key below")
-        api_key = st.text_input(
-            "OpenAI API Key:",
-            type="password",
-            value=st.session_state.get('openai_api_key', ''),
-            help="Required for AI analysis. Set up automatic loading with .env file (see instructions below)"
-        )
-        
-        if api_key != st.session_state.get('openai_api_key', ''):
-            st.session_state.openai_api_key = api_key
+        st.success("🤖 AI Ready - No user input required! Start asking questions below.")
 
     # Check prerequisites
     if not AI_AVAILABLE:
@@ -468,29 +454,9 @@ def display_ai_chat(df):
         st.error(f"Import error: {AI_IMPORT_ERROR}")
         return
 
-    if not st.session_state.openai_api_key:
-        st.warning("Please enter your OpenAI API key above to enable AI chat")
-        
-        # Show setup instructions if no API key is configured
-        with st.expander("📋 How to Set Up Automatic API Key Loading"):
-            st.markdown("""
-            **For Local Development:**
-            1. Create a file named `.env` in your project folder
-            2. Add this line to the file:
-               ```
-               OPENAI_API_KEY=your-actual-api-key-here
-               ```
-            3. Replace `your-actual-api-key-here` with your real OpenAI API key
-            4. Save the file and restart the app
-            5. Your API key will load automatically! 🎉
-            
-            **For Deployment:**
-            - Streamlit Cloud: Add the key in App Settings → Secrets
-            - Heroku: Set as environment variable in Settings
-            - Other platforms: Use their environment variable configuration
-            
-            **Security Note:** The `.env` file is ignored by Git, so your API key stays private.
-            """)
+    # Skip API key validation since we have built-in key or deployment key
+    if api_key == "YOUR_API_KEY_HERE":
+        st.error("🔑 API key not configured. Please replace YOUR_API_KEY_HERE in the code with your actual OpenAI API key.")
         return
 
     # AI status
