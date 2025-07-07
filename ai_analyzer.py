@@ -1109,25 +1109,35 @@ def setup_langchain_agent(api_key: str, df: pd.DataFrame):
     """
     try:
         # Import LangChain components with error handling
-        from langchain.agents import initialize_agent, Tool, AgentType
-        from langchain_openai import OpenAI
-        from langchain.memory import ConversationBufferMemory
-        from langchain_experimental.tools import PythonREPLTool
+        try:
+            from langchain.agents import initialize_agent, Tool, AgentType
+            from langchain_openai import OpenAI
+            from langchain.memory import ConversationBufferMemory
+        except ImportError:
+            # Fallback for newer LangChain versions
+            from langchain.agents import create_react_agent, AgentExecutor
+            from langchain_openai import ChatOpenAI
+            from langchain.memory import ConversationBufferMemory
+            from langchain.tools import Tool
 
         # Initialize LLM with proper configuration
-        llm = OpenAI(
-            temperature=0,
-            openai_api_key=api_key,
-            model_name="gpt-3.5-turbo-instruct",  # Use instruct model for LangChain
-            max_tokens=1000,
-            request_timeout=60
-        )
-
-        # Initialize memory
-        memory = ConversationBufferMemory(
-            memory_key="chat_history",
-            return_messages=True
-        )
+        try:
+            llm = OpenAI(
+                temperature=0,
+                openai_api_key=api_key,
+                model_name="gpt-3.5-turbo-instruct",
+                max_tokens=1000,
+                request_timeout=60
+            )
+        except:
+            # Fallback to ChatOpenAI for newer versions
+            llm = ChatOpenAI(
+                temperature=0,
+                openai_api_key=api_key,
+                model_name="gpt-3.5-turbo",
+                max_tokens=1000,
+                request_timeout=60
+            )
 
         # Create custom tools
         customer_tool = CustomerAnalyzerTool(df)
@@ -1150,21 +1160,28 @@ def setup_langchain_agent(api_key: str, df: pd.DataFrame):
                 name=product_tool.name,
                 func=product_tool.run,
                 description=product_tool.description
-            ),
-            PythonREPLTool()  # For advanced calculations
+            )
         ]
 
-        # Initialize agent with error handling
-        agent = initialize_agent(
-            tools=tools,
-            llm=llm,
-            agent=AgentType.CONVERSATIONAL_REACT_DESCRIPTION,
-            memory=memory,
-            verbose=True,
-            max_iterations=5,
-            early_stopping_method="generate",
-            handle_parsing_errors=True
-        )
+        # Initialize agent with error handling for version compatibility
+        try:
+            agent = initialize_agent(
+                tools=tools,
+                llm=llm,
+                agent=AgentType.CONVERSATIONAL_REACT_DESCRIPTION,
+                verbose=True,
+                max_iterations=3,
+                handle_parsing_errors=True
+            )
+        except:
+            # Simplified agent for compatibility
+            agent = initialize_agent(
+                tools=tools,
+                llm=llm,
+                agent="conversational-react-description",
+                verbose=False,
+                max_iterations=3
+            )
 
         return agent
 
@@ -1186,8 +1203,8 @@ def analyze_with_langchain(question: str, df: pd.DataFrame, api_key: str, respon
         agent = setup_langchain_agent(api_key, df)
 
         if isinstance(agent, str):
-            # Error in setup
-            return f"❌ LangChain setup failed: {agent}"
+            # LangChain failed, fallback to direct analysis
+            return f"🔄 **LangChain Unavailable - Using Direct Analysis:**\n\n{analyze_with_direct_openai(question, df, api_key, response_style)}"
 
         # Define response style for LangChain
         style_instructions = {
@@ -1276,8 +1293,12 @@ ABSOLUTE REQUIREMENTS:
 ANSWER THE EXACT QUESTION ASKED. If asked about satisfaction, use Customer Data Analyzer for satisfaction insights and present its complete output.
 """
 
-        # Run the agent with enhanced context  
-        result = agent.run(context)
+        # Run the agent with enhanced context with fallback  
+        try:
+            result = agent.run(context)
+        except Exception as agent_error:
+            # Agent execution failed, fallback to direct analysis
+            return f"🔄 **LangChain Agent Failed - Using Direct Analysis:**\n\n{analyze_with_direct_openai(question, df, api_key, response_style)}"
 
         # Format the result based on response style
         if response_style == 'concise':
@@ -1307,7 +1328,8 @@ ANSWER THE EXACT QUESTION ASKED. If asked about satisfaction, use Customer Data 
         return formatted_result
 
     except Exception as e:
-        return f"❌ LangChain analysis error: {str(e)}\n\n{traceback.format_exc()}"
+        # Complete fallback to direct OpenAI if everything fails
+        return f"🔄 **LangChain Error - Using Direct Analysis:**\n\n{analyze_with_direct_openai(question, df, api_key, response_style)}"
 
 
 def analyze_with_direct_openai(question: str, df: pd.DataFrame, api_key: str, response_style: str = 'smart'):
