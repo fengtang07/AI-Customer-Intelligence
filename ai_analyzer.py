@@ -85,7 +85,9 @@ def test_ai_connection(api_key: str) -> Dict[str, Any]:
 def setup_langchain_agent(api_key: str, df: pd.DataFrame):
     """Set up improved LangChain agent for data analysis"""
     try:
-        from langchain.agents import create_pandas_dataframe_agent, AgentType
+        # Fixed import - moved to experimental
+        from langchain_experimental.agents import create_pandas_dataframe_agent
+        from langchain.agents import AgentType
         from langchain_openai import ChatOpenAI
         
         # Use ChatOpenAI with a good model
@@ -226,13 +228,18 @@ def analyze_with_direct_openai(question: str, df: pd.DataFrame, api_key: str, re
 Dataset Overview:
 - Total customers: {len(df):,}
 - Columns: {list(df.columns)}
-- Churn rate: {df['churn'].mean()*100:.1f}% if 'churn' in df.columns else 'N/A'
-- Avg spending: ${df['total_spent'].mean():.2f} if 'total_spent' in df.columns else 'N/A'
-- Avg satisfaction: {df['satisfaction_score'].mean():.2f}/5.0 if 'satisfaction_score' in df.columns else 'N/A'
-
-Sample data:
-{df.head(5).to_string()}
 """
+        
+        if 'churn' in df.columns:
+            data_summary += f"- Churn rate: {df['churn'].mean()*100:.1f}%\n"
+        
+        if 'total_spent' in df.columns:
+            data_summary += f"- Avg spending: ${df['total_spent'].mean():.2f}\n"
+            
+        if 'satisfaction_score' in df.columns:
+            data_summary += f"- Avg satisfaction: {df['satisfaction_score'].mean():.2f}/5.0\n"
+        
+        data_summary += f"\nSample data:\n{df.head(5).to_string()}"
         
         prompt = f"""
 You are a data analyst. Based on this customer data:
