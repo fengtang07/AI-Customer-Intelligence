@@ -1013,24 +1013,25 @@ def setup_langchain_agent(api_key: str, df: pd.DataFrame):
         if use_python_tool:
             tools.append(PythonREPLTool())
 
-        # Initialize agent with error handling for version compatibility
+        # Initialize agent with simpler, more reliable configuration
         try:
             agent = initialize_agent(
                 tools=tools,
                 llm=llm,
-                agent=AgentType.CONVERSATIONAL_REACT_DESCRIPTION,
-                verbose=True,
-                max_iterations=3,
-                handle_parsing_errors=True
+                agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+                verbose=False,
+                max_iterations=2,
+                handle_parsing_errors=True,
+                early_stopping_method="generate"
             )
         except:
-            # Simplified agent for compatibility
+            # Fallback with most basic configuration
             agent = initialize_agent(
                 tools=tools,
                 llm=llm,
-                agent="conversational-react-description",
+                agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
                 verbose=False,
-                max_iterations=3
+                max_iterations=1
             )
 
         return agent
@@ -1077,81 +1078,35 @@ DETAIL LEVEL: Include all statistical measures, detailed methodology, and quanti
 
         current_style_instruction = style_instructions.get(response_style, style_instructions['smart'])
 
-        # Enhanced context with specific instructions for actionable insights
-        context = f"""
-You are a SENIOR CUSTOMER ANALYTICS CONSULTANT providing actionable business insights.
+        # Simplified, focused context for reliable agent execution
+        context = f"""Analyze customer data to answer: "{question}"
 
-{current_style_instruction}
+Dataset: {len(df):,} customers with columns {list(df.columns)}
 
-DATASET CONTEXT:
-- Customer Database: {len(df):,} customers
-- Columns Available: {list(df.columns)}
-- Business Metrics Overview:
-"""
+Use the appropriate tool:
+- Customer Data Analyzer: for churn, satisfaction, demographics, segments
+- Statistical Analyzer: for correlations, distributions, statistical analysis  
+- Product Category Analyzer: for product categories, revenue by category
 
-        if 'churn' in df.columns:
-            churn_rate = df['churn'].mean() * 100
-            context += f"  • Churn Rate: {churn_rate:.1f}% ({'CRITICAL' if churn_rate > 20 else 'MODERATE' if churn_rate > 10 else 'GOOD'})\n"
-        if 'total_spent' in df.columns:
-            total_revenue = df['total_spent'].sum()
-            avg_spend = df['total_spent'].mean()
-            context += f"  • Total Revenue: ${total_revenue:,.2f}\n"
-            context += f"  • Avg Customer Value: ${avg_spend:.2f}\n"
-        if 'satisfaction_score' in df.columns:
-            avg_satisfaction = df['satisfaction_score'].mean()
-            context += f"  • Avg Satisfaction: {avg_satisfaction:.2f}/5.0 ({'EXCELLENT' if avg_satisfaction >= 4.5 else 'GOOD' if avg_satisfaction >= 4.0 else 'NEEDS IMPROVEMENT'})\n"
+Always use a tool first, then provide insights based on the tool output."""
 
-        context += f"""
-
-ANALYSIS REQUIREMENT:
-Question: "{question}"
-
-TOOL SELECTION GUIDELINES:
-- For PRODUCT CATEGORY questions (product revenue, top categories, category performance): Use "Product Category Analyzer"
-- For CUSTOMER BEHAVIOR questions (churn, segments, demographics, satisfaction): Use "Customer Data Analyzer"  
-- For STATISTICAL questions (correlations, distributions): Use "Statistical Analyzer"
-- For CALCULATIONS: Use "Python REPL Tool"
-
-CRITICAL INSTRUCTIONS:
-1. ALWAYS USE THE APPROPRIATE TOOL FIRST - never answer without using tools
-2. **MANDATORY**: COPY AND PASTE THE COMPLETE TOOL OUTPUT into your response exactly as provided
-3. DO NOT SUMMARIZE OR PARAPHRASE the tool output - include ALL statistics, percentages, and insights
-4. After presenting the complete tool results, add your own strategic business interpretation
-5. Use ONLY the specific numbers and insights from the tool outputs
-6. Calculate additional FINANCIAL IMPACT based on tool data
-7. Identify OPPORTUNITIES and RISKS from the tool analysis
-8. Suggest IMPLEMENTATION STRATEGIES based on tool findings
-
-**RESPONSE FORMAT REQUIREMENT:**
-```
-[TOOL NAME] ANALYSIS:
-[PASTE COMPLETE TOOL OUTPUT HERE - DO NOT MODIFY OR SUMMARIZE]
-
-STRATEGIC BUSINESS INTERPRETATION:
-[Your analysis and recommendations based on the tool output]
-
-IMMEDIATE ACTION PLAN:
-[Specific next steps based on the data]
-```
-
-ABSOLUTE REQUIREMENTS:
-- NEVER give generic responses like "it is clear that..." or "it is recommended to..."
-- ALWAYS include the specific statistics from tool output (percentages, counts, dollar amounts)
-- INCLUDE ALL sections from the tool output (statistics, distribution, impact analysis, etc.)
-- DO NOT create your own analysis without first presenting the complete tool results
-
-ANSWER THE EXACT QUESTION ASKED. If asked about satisfaction, use Customer Data Analyzer for satisfaction insights and present its complete output.
-"""
-
-        # Run the agent with enhanced context with fallback  
+        # Run the agent with detailed error reporting
         try:
-            # Suppress deprecation warnings and use the working method
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 result = agent.run(context)
+                
+            # Ensure we got a result
+            if not result or len(str(result).strip()) < 10:
+                return f"🔄 **LangChain Agent returned empty result - Using Direct Analysis:**\n\n{analyze_with_direct_openai(question, df, api_key, response_style)}"
+                
         except Exception as agent_error:
-            # Agent execution failed, fallback to direct analysis
-            return f"🔄 **LangChain Agent Failed - Using Direct Analysis:**\n\n{analyze_with_direct_openai(question, df, api_key, response_style)}"
+            # Show the actual error for debugging, then fallback
+            error_msg = str(agent_error)
+            if "API key" in error_msg or "401" in error_msg:
+                return f"🔄 **LangChain Agent API Error - Using Direct Analysis:**\n\n{analyze_with_direct_openai(question, df, api_key, response_style)}"
+            else:
+                return f"🔄 **LangChain Agent Error ({error_msg[:100]}) - Using Direct Analysis:**\n\n{analyze_with_direct_openai(question, df, api_key, response_style)}"
 
         # Format the result based on response style
         if response_style == 'concise':
