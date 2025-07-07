@@ -14,6 +14,10 @@ from typing import Dict, Any, Optional, List
 import warnings
 
 warnings.filterwarnings('ignore')
+# Suppress specific LangChain deprecation warnings
+warnings.filterwarnings('ignore', category=DeprecationWarning, module='langchain')
+warnings.filterwarnings('ignore', message='.*LangChain agents.*')
+warnings.filterwarnings('ignore', message='.*Chain.run.*')
 
 
 def debug_environment():
@@ -1141,7 +1145,10 @@ ANSWER THE EXACT QUESTION ASKED. If asked about satisfaction, use Customer Data 
 
         # Run the agent with enhanced context with fallback  
         try:
-            result = agent.run(context)
+            # Suppress deprecation warnings and use the working method
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                result = agent.run(context)
         except Exception as agent_error:
             # Agent execution failed, fallback to direct analysis
             return f"🔄 **LangChain Agent Failed - Using Direct Analysis:**\n\n{analyze_with_direct_openai(question, df, api_key, response_style)}"
@@ -1354,7 +1361,9 @@ def test_both_methods(api_key: str):
 
     print("🧪 Testing LangChain Method:")
     print("=" * 50)
-    langchain_result = analyze_with_langchain(question, test_df, api_key)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        langchain_result = analyze_with_langchain(question, test_df, api_key)
     print(langchain_result)
 
     print("\n🧪 Testing Direct OpenAI Method:")

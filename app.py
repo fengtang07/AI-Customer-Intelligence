@@ -236,7 +236,7 @@ def initialize_session_state():
         'current_data': None,
         'openai_api_key': "",
         'sample_data': None,
-        'analysis_method': 'langchain',
+        'analysis_method': 'direct',
         'chat_mode': 'smart',
         'data_uploaded': False,
         'last_analysis_time': None
@@ -418,13 +418,13 @@ def display_ai_chat(df):
     # AI Analysis Method
     analysis_method = st.selectbox(
         "AI Analysis Method:",
-        ["LangChain Agent", "Direct OpenAI"],
-        index=0 if st.session_state.analysis_method == 'langchain' else 1,
-        help="LangChain provides more sophisticated reasoning with specialized tools"
+        ["Direct OpenAI", "LangChain Agent (Advanced)"],
+        index=1 if st.session_state.analysis_method == 'langchain' else 0,
+        help="Direct OpenAI is fast and reliable. LangChain provides more sophisticated reasoning with specialized tools."
     )
     
     # Update session state
-    if analysis_method == "LangChain Agent":
+    if analysis_method == "LangChain Agent (Advanced)":
         st.session_state.analysis_method = 'langchain'
     else:
         st.session_state.analysis_method = 'direct'
