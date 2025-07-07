@@ -253,6 +253,19 @@ def initialize_session_state():
 # Clean up and initialize
 initialize_session_state()
 
+# Function to get API key from secrets or session state
+def get_openai_api_key():
+    """Get OpenAI API key from Streamlit secrets or session state"""
+    try:
+        # First try to get from Streamlit secrets
+        if hasattr(st, 'secrets') and 'OPENAI_API_KEY' in st.secrets:
+            return st.secrets['OPENAI_API_KEY']
+    except Exception:
+        pass
+    
+    # Fall back to session state (manual input)
+    return st.session_state.get('openai_api_key', '')
+
 # Generate e-commerce data automatically with different data each time
 def generate_ecommerce_data():
     """Generate varied e-commerce sample data"""
@@ -419,16 +432,28 @@ def display_ai_chat(df):
     # Set default response style since we removed the selector
     st.session_state.chat_mode = "smart"
 
-    # API Key input
-    api_key = st.text_input(
-        "OpenAI API Key:",
-        type="password",
-        value=st.session_state.get('openai_api_key', ''),
-        help="Required for AI analysis"
-    )
+    # Get API key from secrets or user input
+    api_key_from_secrets = get_openai_api_key()
     
-    if api_key != st.session_state.get('openai_api_key', ''):
-        st.session_state.openai_api_key = api_key
+    if api_key_from_secrets and api_key_from_secrets.startswith('sk-'):
+        # API key found in secrets - show success message
+        st.success("🔑 API Key: Loaded from Streamlit secrets")
+        current_api_key = api_key_from_secrets
+        st.session_state.openai_api_key = api_key_from_secrets
+    else:
+        # No API key in secrets - show input field
+        st.info("💡 Add your OpenAI API key to Streamlit secrets for automatic loading")
+        api_key = st.text_input(
+            "OpenAI API Key:",
+            type="password",
+            value=st.session_state.get('openai_api_key', ''),
+            help="Required for AI analysis. Add to Streamlit secrets for automatic loading."
+        )
+        
+        if api_key != st.session_state.get('openai_api_key', ''):
+            st.session_state.openai_api_key = api_key
+        
+        current_api_key = st.session_state.get('openai_api_key', '')
 
     # Check prerequisites
     if not AI_AVAILABLE:
@@ -436,12 +461,12 @@ def display_ai_chat(df):
         st.error(f"Import error: {AI_IMPORT_ERROR}")
         return
 
-    if not st.session_state.openai_api_key:
-        st.warning("Please enter your OpenAI API key above to enable AI chat")
+    if not current_api_key:
+        st.warning("Please add your OpenAI API key to Streamlit secrets or enter it above to enable AI chat")
         return
 
     # AI status
-    st.success(f"AI Ready | Method: {st.session_state.analysis_method.title()}")
+    st.success(f"🤖 AI Ready | Method: {st.session_state.analysis_method.title()} | Key: {'Secrets' if api_key_from_secrets else 'Manual'}")
 
     # Sample questions
     st.markdown("### Try These Questions")
@@ -462,7 +487,10 @@ def display_ai_chat(df):
             if i + j < len(sample_questions):
                 question_text = sample_questions[i + j]
                 if col.button(question_text, key=f"sample_q_{i + j}"):
-                    process_ai_question(question_text, df)
+                    if current_api_key:
+                        process_ai_question(question_text, df)
+                    else:
+                        st.error("Please add your OpenAI API key to Streamlit secrets or enter it above")
 
     # Chat input
     st.markdown("### Ask Your Question")
@@ -478,8 +506,8 @@ def display_ai_chat(df):
 
     # Process question
     if ask_submitted and user_question.strip():
-        if not st.session_state.openai_api_key:
-            st.error("Please enter your OpenAI API key first")
+        if not current_api_key:
+            st.error("Please add your OpenAI API key to Streamlit secrets or enter it above")
         else:
             process_ai_question(user_question, df)
     elif ask_submitted and not user_question.strip():
@@ -492,14 +520,17 @@ def process_ai_question(question, df):
     """Process AI question and generate response"""
     with st.spinner("AI is analyzing your question..."):
         try:
+            # Get API key
+            api_key = get_openai_api_key()
+            
             # Get response style preference
             response_style = st.session_state.get('chat_mode', 'smart')
             
             # Choose analysis method
             if st.session_state.analysis_method == 'langchain':
-                response = analyze_with_langchain(question, df, st.session_state.openai_api_key, response_style)
+                response = analyze_with_langchain(question, df, api_key, response_style)
             else:  # direct
-                response = analyze_with_direct_openai(question, df, st.session_state.openai_api_key, response_style)
+                response = analyze_with_direct_openai(question, df, api_key, response_style)
 
             # Add to chat history
             if 'chat_history' not in st.session_state:
