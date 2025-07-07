@@ -12,13 +12,8 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import warnings
 import random
-import os
-from dotenv import load_dotenv
 
 warnings.filterwarnings('ignore')
-
-# Load environment variables from .env file
-load_dotenv()
 
 # Import AI functionality with comprehensive error handling
 try:
@@ -424,29 +419,16 @@ def display_ai_chat(df):
     # Set default response style since we removed the selector
     st.session_state.chat_mode = "smart"
 
-    # Built-in API Key - No user input required!
-    # Replace YOUR_API_KEY_HERE with your actual OpenAI API key for local development
-    BUILT_IN_API_KEY = "YOUR_API_KEY_HERE"
+    # API Key input
+    api_key = st.text_input(
+        "OpenAI API Key:",
+        type="password",
+        value=st.session_state.get('openai_api_key', ''),
+        help="Required for AI analysis"
+    )
     
-    # For deployment: also check environment variables and secrets
-    deployment_key = ""
-    try:
-        deployment_key = os.getenv("OPENAI_API_KEY", "")
-        if not deployment_key and hasattr(st, 'secrets'):
-            deployment_key = st.secrets.get("OPENAI_API_KEY", "")
-    except Exception:
-        deployment_key = ""
-    
-    # Use deployment key if available, otherwise use built-in key
-    api_key = deployment_key or BUILT_IN_API_KEY
-    st.session_state.openai_api_key = api_key
-    
-    # Show appropriate message
-    if api_key == "YOUR_API_KEY_HERE":
-        st.warning("⚠️ Please replace YOUR_API_KEY_HERE in the code with your actual OpenAI API key")
-        st.info("Edit app.py around line 430 and replace 'YOUR_API_KEY_HERE' with your real API key")
-    else:
-        st.success("🤖 AI Ready - No user input required! Start asking questions below.")
+    if api_key != st.session_state.get('openai_api_key', ''):
+        st.session_state.openai_api_key = api_key
 
     # Check prerequisites
     if not AI_AVAILABLE:
@@ -454,9 +436,8 @@ def display_ai_chat(df):
         st.error(f"Import error: {AI_IMPORT_ERROR}")
         return
 
-    # Skip API key validation since we have built-in key or deployment key
-    if api_key == "YOUR_API_KEY_HERE":
-        st.error("🔑 API key not configured. Please replace YOUR_API_KEY_HERE in the code with your actual OpenAI API key.")
+    if not st.session_state.openai_api_key:
+        st.warning("Please enter your OpenAI API key above to enable AI chat")
         return
 
     # AI status
