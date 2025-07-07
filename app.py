@@ -419,16 +419,23 @@ def display_ai_chat(df):
     # Set default response style since we removed the selector
     st.session_state.chat_mode = "smart"
 
-    # API Key input
+    # API Key input - check for environment variable first
+    default_api_key = st.secrets.get("OPENAI_API_KEY", "") if hasattr(st, 'secrets') else ""
+    
     api_key = st.text_input(
         "OpenAI API Key:",
         type="password",
-        value=st.session_state.get('openai_api_key', ''),
-        help="Required for AI analysis"
+        value=st.session_state.get('openai_api_key', default_api_key),
+        help="Required for AI analysis (can be set in deployment secrets)"
     )
     
     if api_key != st.session_state.get('openai_api_key', ''):
         st.session_state.openai_api_key = api_key
+    
+    # Use default key if available and no user input
+    if not api_key and default_api_key:
+        st.session_state.openai_api_key = default_api_key
+        api_key = default_api_key
 
     # Check prerequisites
     if not AI_AVAILABLE:
