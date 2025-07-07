@@ -12,8 +12,13 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import warnings
 import random
+import os
+from dotenv import load_dotenv
 
 warnings.filterwarnings('ignore')
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Import AI functionality with comprehensive error handling
 try:
@@ -419,23 +424,43 @@ def display_ai_chat(df):
     # Set default response style since we removed the selector
     st.session_state.chat_mode = "smart"
 
-    # API Key input - check for environment variable first
-    default_api_key = st.secrets.get("OPENAI_API_KEY", "") if hasattr(st, 'secrets') else ""
+    # API Key input - check multiple sources in priority order
+    # 1. Environment variable (local .env file)
+    env_api_key = os.getenv("OPENAI_API_KEY", "")
+    # 2. Streamlit secrets (deployment)
+    secrets_api_key = st.secrets.get("OPENAI_API_KEY", "") if hasattr(st, 'secrets') else ""
+    # 3. Use the first available key
+    default_api_key = env_api_key or secrets_api_key
     
-    api_key = st.text_input(
-        "OpenAI API Key:",
-        type="password",
-        value=st.session_state.get('openai_api_key', default_api_key),
-        help="Required for AI analysis (can be set in deployment secrets)"
-    )
-    
-    if api_key != st.session_state.get('openai_api_key', ''):
-        st.session_state.openai_api_key = api_key
-    
-    # Use default key if available and no user input
-    if not api_key and default_api_key:
-        st.session_state.openai_api_key = default_api_key
+    # Show different UI based on whether key is pre-configured
+    if default_api_key:
+        st.success("✅ API Key loaded automatically from configuration")
         api_key = default_api_key
+        st.session_state.openai_api_key = default_api_key
+        
+        # Optional: Allow override
+        with st.expander("🔧 Override API Key (Optional)"):
+            manual_api_key = st.text_input(
+                "Custom OpenAI API Key:",
+                type="password",
+                placeholder="Leave empty to use configured key",
+                help="Only enter if you want to use a different API key"
+            )
+            if manual_api_key:
+                api_key = manual_api_key
+                st.session_state.openai_api_key = manual_api_key
+    else:
+        # No pre-configured key, require manual input
+        st.info("🔑 Please enter your OpenAI API key below")
+        api_key = st.text_input(
+            "OpenAI API Key:",
+            type="password",
+            value=st.session_state.get('openai_api_key', ''),
+            help="Required for AI analysis. Set up automatic loading with .env file (see instructions below)"
+        )
+        
+        if api_key != st.session_state.get('openai_api_key', ''):
+            st.session_state.openai_api_key = api_key
 
     # Check prerequisites
     if not AI_AVAILABLE:
@@ -445,6 +470,27 @@ def display_ai_chat(df):
 
     if not st.session_state.openai_api_key:
         st.warning("Please enter your OpenAI API key above to enable AI chat")
+        
+        # Show setup instructions if no API key is configured
+        with st.expander("📋 How to Set Up Automatic API Key Loading"):
+            st.markdown("""
+            **For Local Development:**
+            1. Create a file named `.env` in your project folder
+            2. Add this line to the file:
+               ```
+               OPENAI_API_KEY=your-actual-api-key-here
+               ```
+            3. Replace `your-actual-api-key-here` with your real OpenAI API key
+            4. Save the file and restart the app
+            5. Your API key will load automatically! 🎉
+            
+            **For Deployment:**
+            - Streamlit Cloud: Add the key in App Settings → Secrets
+            - Heroku: Set as environment variable in Settings
+            - Other platforms: Use their environment variable configuration
+            
+            **Security Note:** The `.env` file is ignored by Git, so your API key stays private.
+            """)
         return
 
     # AI status

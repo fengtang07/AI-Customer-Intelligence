@@ -64,11 +64,14 @@ setup_dev.bat
    pip install -r requirements.txt
    ```
 
-2. **Configure environment:**
+2. **Configure environment (Automatic API Key Loading):**
    ```bash
-   cp .env.example .env
-   # Edit .env and add your OpenAI API key
+   cp .env.template .env
+   # Edit .env and add your OpenAI API key:
+   # OPENAI_API_KEY=sk-your-actual-api-key-here
    ```
+   
+   **✅ With this setup, your API key loads automatically - users won't need to enter it manually!**
 
 3. **Run the application:**
    ```bash
