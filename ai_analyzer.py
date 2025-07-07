@@ -7,6 +7,7 @@ Features LangChain agent framework with custom tools for sophisticated customer 
 import pandas as pd
 import numpy as np
 import sys
+import os
 import traceback
 import platform
 from typing import Dict, Any, Optional, List
@@ -701,181 +702,6 @@ Categories: {', '.join(categories)}
 
 
 class StatisticalAnalyzerTool:
-    """Custom tool for product category analysis"""
-
-    def __init__(self, df: pd.DataFrame):
-        self.df = df
-        self.name = "Product Category Analyzer"
-        self.description = """Analyze product categories, sales by category, and category performance. 
-        Use for questions about product categories, top selling products, category revenue, or product performance."""
-
-    def run(self, query: str) -> str:
-        """Run product category analysis based on query"""
-        try:
-            if 'product_category' not in self.df.columns:
-                return "❌ No product category data available in dataset"
-
-            query_lower = query.lower()
-
-            if 'revenue' in query_lower or 'sales' in query_lower or 'top' in query_lower:
-                return self._analyze_category_revenue()
-            elif 'performance' in query_lower:
-                return self._analyze_category_performance()
-            elif 'popular' in query_lower or 'selling' in query_lower:
-                return self._analyze_popular_categories()
-            else:
-                return self._general_category_overview()
-
-        except Exception as e:
-            return f"❌ Product category analysis error: {str(e)}"
-
-    def _analyze_category_revenue(self) -> str:
-        """Analyze revenue by product category"""
-        try:
-            if 'total_spent' not in self.df.columns:
-                return "❌ No spending data available for revenue analysis"
-
-            # Calculate revenue by category
-            category_revenue = self.df.groupby('product_category')['total_spent'].agg(['sum', 'count', 'mean']).round(2)
-            category_revenue = category_revenue.sort_values('sum', ascending=False)
-
-            total_revenue = self.df['total_spent'].sum()
-
-            analysis = f"""
-📊 PRODUCT CATEGORY REVENUE ANALYSIS:
-
-💰 Total Revenue: ${total_revenue:,.2f}
-
-🏆 TOP CATEGORIES BY REVENUE:
-"""
-
-            for i, (category, data) in enumerate(category_revenue.head().iterrows(), 1):
-                revenue = data['sum']
-                customers = int(data['count'])
-                avg_spend = data['mean']
-                percentage = (revenue / total_revenue) * 100
-
-                analysis += f"""
-{i}. {category.upper()}:
-   • Revenue: ${revenue:,.2f} ({percentage:.1f}% of total)
-   • Customers: {customers:,} purchasers
-   • Avg Spend per Customer: ${avg_spend:.2f}
-"""
-
-            # Category performance insights
-            top_category = category_revenue.index[0]
-            top_revenue = category_revenue.iloc[0]['sum']
-            top_percentage = (top_revenue / total_revenue) * 100
-
-            analysis += f"""
-🔍 KEY INSIGHTS:
-• LEADING CATEGORY: {top_category} dominates with ${top_revenue:,.2f} ({top_percentage:.1f}% of revenue)
-• REVENUE CONCENTRATION: Top 3 categories generate ${category_revenue.head(3)['sum'].sum():,.2f} ({category_revenue.head(3)['sum'].sum() / total_revenue * 100:.1f}% of total)
-• CATEGORY COUNT: {len(category_revenue)} different product categories
-
-🚀 RECOMMENDATIONS:
-• FOCUS: Invest more in {top_category} category (highest revenue generator)
-• EXPAND: Cross-sell other categories to {top_category} customers
-• OPTIMIZE: Improve marketing for underperforming categories
-"""
-
-            return analysis
-
-        except Exception as e:
-            return f"❌ Category revenue analysis error: {str(e)}"
-
-    def _analyze_category_performance(self) -> str:
-        """Analyze category performance metrics"""
-        try:
-            category_stats = self.df.groupby('product_category').agg({
-                'total_spent': ['sum', 'mean', 'count'],
-                'satisfaction_score': 'mean' if 'satisfaction_score' in self.df.columns else lambda x: None,
-                'churn': 'mean' if 'churn' in self.df.columns else lambda x: None
-            }).round(2)
-
-            analysis = f"""
-📈 PRODUCT CATEGORY PERFORMANCE:
-
-Category Performance Metrics:
-"""
-
-            for category in category_stats.index:
-                revenue = category_stats.loc[category, ('total_spent', 'sum')]
-                avg_spend = category_stats.loc[category, ('total_spent', 'mean')]
-                customers = int(category_stats.loc[category, ('total_spent', 'count')])
-
-                analysis += f"\n{category.upper()}:\n"
-                analysis += f"  • Revenue: ${revenue:,.2f}\n"
-                analysis += f"  • Customers: {customers:,}\n"
-                analysis += f"  • Avg Spend: ${avg_spend:.2f}\n"
-
-                if 'satisfaction_score' in self.df.columns:
-                    satisfaction = category_stats.loc[category, ('satisfaction_score', 'mean')]
-                    if not pd.isna(satisfaction):
-                        analysis += f"  • Satisfaction: {satisfaction:.2f}/5.0\n"
-
-                if 'churn' in self.df.columns:
-                    churn_rate = category_stats.loc[category, ('churn', 'mean')] * 100
-                    if not pd.isna(churn_rate):
-                        analysis += f"  • Churn Rate: {churn_rate:.1f}%\n"
-
-            return analysis
-
-        except Exception as e:
-            return f"❌ Category performance analysis error: {str(e)}"
-
-    def _analyze_popular_categories(self) -> str:
-        """Analyze most popular categories by customer count"""
-        try:
-            category_popularity = self.df['product_category'].value_counts()
-            total_customers = len(self.df)
-
-            analysis = f"""
-🌟 MOST POPULAR PRODUCT CATEGORIES:
-
-📊 Popularity Ranking (by customer count):
-"""
-
-            for i, (category, count) in enumerate(category_popularity.head().items(), 1):
-                percentage = (count / total_customers) * 100
-                analysis += f"{i}. {category}: {count:,} customers ({percentage:.1f}%)\n"
-
-            analysis += f"""
-🔍 INSIGHTS:
-• Most Popular: {category_popularity.index[0]} with {category_popularity.iloc[0]:,} customers
-• Category Spread: {len(category_popularity)} different categories available
-• Market Share: Top category captures {category_popularity.iloc[0] / total_customers * 100:.1f}% of customers
-"""
-
-            return analysis
-
-        except Exception as e:
-            return f"❌ Popular categories analysis error: {str(e)}"
-
-    def _general_category_overview(self) -> str:
-        """General overview of product categories"""
-        try:
-            categories = self.df['product_category'].unique()
-            category_counts = self.df['product_category'].value_counts()
-
-            analysis = f"""
-🛍️ PRODUCT CATEGORY OVERVIEW:
-
-📋 Available Categories: {len(categories)}
-Categories: {', '.join(categories)}
-
-📊 Customer Distribution:
-"""
-
-            for category, count in category_counts.items():
-                percentage = (count / len(self.df)) * 100
-                analysis += f"• {category}: {count:,} customers ({percentage:.1f}%)\n"
-
-            return analysis
-
-        except Exception as e:
-            return f"❌ Category overview error: {str(e)}"
-
     """Custom tool for statistical analysis"""
 
     def __init__(self, df: pd.DataFrame):
@@ -1109,25 +935,51 @@ def setup_langchain_agent(api_key: str, df: pd.DataFrame):
     """
     try:
         # Import LangChain components with error handling
-        from langchain.agents import initialize_agent, Tool, AgentType
-        from langchain_openai import OpenAI
-        from langchain.memory import ConversationBufferMemory
-        from langchain_experimental.tools import PythonREPLTool
+        try:
+            from langchain.agents import initialize_agent, Tool, AgentType
+            from langchain_openai import OpenAI
+            from langchain.memory import ConversationBufferMemory
+        except ImportError:
+            # Fallback for newer LangChain versions
+            from langchain.agents import create_react_agent, AgentExecutor
+            from langchain.tools import Tool
+
+        # Always import ChatOpenAI as fallback
+        try:
+            from langchain_openai import ChatOpenAI
+        except ImportError:
+            pass
+
+        # Try to import PythonREPLTool
+        try:
+            from langchain_experimental.tools import PythonREPLTool
+            use_python_tool = True
+        except ImportError:
+            use_python_tool = False
 
         # Initialize LLM with proper configuration
-        llm = OpenAI(
-            temperature=0,
-            openai_api_key=api_key,
-            model_name="gpt-3.5-turbo-instruct",  # Use instruct model for LangChain
-            max_tokens=1000,
-            request_timeout=60
-        )
-
-        # Initialize memory
-        memory = ConversationBufferMemory(
-            memory_key="chat_history",
-            return_messages=True
-        )
+        try:
+            from langchain_openai import OpenAI
+            llm = OpenAI(
+                temperature=0,
+                openai_api_key=api_key,
+                model_name="gpt-3.5-turbo-instruct",
+                max_tokens=1000,
+                request_timeout=60
+            )
+        except:
+            # Fallback to ChatOpenAI for newer versions
+            try:
+                from langchain_openai import ChatOpenAI
+                llm = ChatOpenAI(
+                    temperature=0,
+                    openai_api_key=api_key,
+                    model_name="gpt-3.5-turbo",
+                    max_tokens=1000,
+                    request_timeout=60
+                )
+            except Exception as llm_error:
+                return f"❌ LLM initialization error: {str(llm_error)}"
 
         # Create custom tools
         customer_tool = CustomerAnalyzerTool(df)
@@ -1150,21 +1002,32 @@ def setup_langchain_agent(api_key: str, df: pd.DataFrame):
                 name=product_tool.name,
                 func=product_tool.run,
                 description=product_tool.description
-            ),
-            PythonREPLTool()  # For advanced calculations
+            )
         ]
 
-        # Initialize agent with error handling
-        agent = initialize_agent(
-            tools=tools,
-            llm=llm,
-            agent=AgentType.CONVERSATIONAL_REACT_DESCRIPTION,
-            memory=memory,
-            verbose=True,
-            max_iterations=5,
-            early_stopping_method="generate",
-            handle_parsing_errors=True
-        )
+        # Add Python REPL tool if available
+        if use_python_tool:
+            tools.append(PythonREPLTool())
+
+        # Initialize agent with error handling for version compatibility
+        try:
+            agent = initialize_agent(
+                tools=tools,
+                llm=llm,
+                agent=AgentType.CONVERSATIONAL_REACT_DESCRIPTION,
+                verbose=True,
+                max_iterations=3,
+                handle_parsing_errors=True
+            )
+        except:
+            # Simplified agent for compatibility
+            agent = initialize_agent(
+                tools=tools,
+                llm=llm,
+                agent="conversational-react-description",
+                verbose=False,
+                max_iterations=3
+            )
 
         return agent
 
@@ -1186,8 +1049,8 @@ def analyze_with_langchain(question: str, df: pd.DataFrame, api_key: str, respon
         agent = setup_langchain_agent(api_key, df)
 
         if isinstance(agent, str):
-            # Error in setup
-            return f"❌ LangChain setup failed: {agent}"
+            # LangChain failed, fallback to direct analysis
+            return f"🔄 **LangChain Unavailable - Using Direct Analysis:**\n\n{analyze_with_direct_openai(question, df, api_key, response_style)}"
 
         # Define response style for LangChain
         style_instructions = {
@@ -1276,8 +1139,12 @@ ABSOLUTE REQUIREMENTS:
 ANSWER THE EXACT QUESTION ASKED. If asked about satisfaction, use Customer Data Analyzer for satisfaction insights and present its complete output.
 """
 
-        # Run the agent with enhanced context  
-        result = agent.run(context)
+        # Run the agent with enhanced context with fallback  
+        try:
+            result = agent.run(context)
+        except Exception as agent_error:
+            # Agent execution failed, fallback to direct analysis
+            return f"🔄 **LangChain Agent Failed - Using Direct Analysis:**\n\n{analyze_with_direct_openai(question, df, api_key, response_style)}"
 
         # Format the result based on response style
         if response_style == 'concise':
@@ -1307,7 +1174,8 @@ ANSWER THE EXACT QUESTION ASKED. If asked about satisfaction, use Customer Data 
         return formatted_result
 
     except Exception as e:
-        return f"❌ LangChain analysis error: {str(e)}\n\n{traceback.format_exc()}"
+        # Complete fallback to direct OpenAI if everything fails
+        return f"🔄 **LangChain Error - Using Direct Analysis:**\n\n{analyze_with_direct_openai(question, df, api_key, response_style)}"
 
 
 def analyze_with_direct_openai(question: str, df: pd.DataFrame, api_key: str, response_style: str = 'smart'):
@@ -1496,13 +1364,22 @@ def test_both_methods(api_key: str):
 
 
 if __name__ == "__main__":
-    # Quick test
+    # Quick test - only run interactive input in terminal environments
     print("🔧 AI Analyzer Module Test")
     print("Debug Environment:")
     print(debug_environment())
-
-    api_key = input("\nEnter OpenAI API key (optional, for testing): ").strip()
-    if api_key:
-        test_both_methods(api_key)
-    else:
+    
+    # Check if we have an interactive terminal
+    try:
+        # This will only work if we have a real interactive terminal
+        if sys.stdin.isatty():
+            api_key = input("\nEnter OpenAI API key (optional, for testing): ").strip()
+            if api_key:
+                test_both_methods(api_key)
+            else:
+                print("✅ Module loaded successfully. Add API key to test AI functions.")
+        else:
+            print("✅ Module loaded successfully. Add API key to test AI functions.")
+    except:
+        # If anything fails, just show the success message
         print("✅ Module loaded successfully. Add API key to test AI functions.")
