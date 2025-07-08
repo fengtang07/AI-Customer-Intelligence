@@ -110,6 +110,7 @@ Key columns: customer_id, age, gender, total_spent, monthly_visits, satisfaction
 Always start by understanding the data structure, then answer the specific question with numbers.""",
             max_iterations=10,
             early_stopping_method="force",
+            allow_dangerous_code=True,  # Required for pandas agent
             agent_executor_kwargs={
                 "handle_parsing_errors": True
             }
