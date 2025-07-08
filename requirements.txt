@@ -1,33 +1,38 @@
-# Core Framework - Python 3.13 Compatible
+# AI Customer Intelligence Agent - Requirements
+# Core Framework - Python 3.10+ Compatible
 streamlit>=1.28.0
-pandas>=2.2.0
-numpy>=1.26.0
-tabulate
+pandas>=2.0.0
+numpy>=1.24.0
 
-# AI/ML - Simplified for deployment stability
+# AI/ML Core Libraries
 openai>=1.0.0
-scikit-learn>=1.3.0
 langchain>=0.1.0
 langchain-core>=0.1.0
 langchain-openai>=0.0.5
 langchain-experimental>=0.0.50
+langgraph>=0.0.40
+scikit-learn>=1.3.0
 
 # Data Visualization
 plotly>=5.17.0
 matplotlib>=3.7.0
 seaborn>=0.12.0
 
-# Data Processing
-python-dotenv>=1.0.0
-faker>=20.0.0
+# Statistical Analysis
+scipy>=1.10.0
 
-# Utilities
+# Data Processing & Utilities
+python-dotenv>=1.0.0
 requests>=2.31.0
 python-dateutil>=2.8.0
 pytz>=2023.3
 
-# Development (optional for deployment)
+# Optional Development Tools (uncomment if needed)
 # pytest>=7.4.0
 # black>=23.9.0
 # flake8>=6.1.0
 # jupyter>=1.0.0
+
+# Production Deployment (uncomment for cloud deployment)
+# gunicorn>=21.2.0
+# psutil>=5.9.0 
