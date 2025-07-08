@@ -184,6 +184,10 @@ print(result)
 4. Test thoroughly
 5. Submit a pull request
 
+## AI-Assisted Code 
+
+- This code is assisted by AI (Cursor)
+
 ## License
 
 This project is licensed under the MIT License.
