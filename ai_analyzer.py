@@ -133,27 +133,7 @@ Always start by understanding the data structure, then answer the specific quest
 import re
 from datetime import datetime
 
-def fix_text_formatting(text: str) -> str:
-    """Fix common text formatting issues"""
-    import re
-    
-    # Fix run-together numbers and text
-    text = re.sub(r'(\d+\.?\d*),([a-zA-Z])', r'\1, \2', text)  # Add space after comma+number
-    text = re.sub(r'(\d+\.?\d*)([a-zA-Z])', r'\1 \2', text)    # Add space between number and letter
-    text = re.sub(r'([a-zA-Z])(\d+\.?\d*)', r'\1 \2', text)    # Add space between letter and number
-    
-    # Fix specific problematic patterns from segmentation
-    text = re.sub(r'(\d+)and(\d+)', r'\1 and \2', text)        # Fix "200and500" -> "200 and 500"
-    text = re.sub(r'\$(\d+\.?\d*),with', r'$\1, with', text)
-    text = re.sub(r'(\d+\.?\d*),with', r'\1, with', text)
-    text = re.sub(r'amountingto\$', r'amounting to $', text)
-    text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)  # Add space between lowercase and uppercase
-    text = re.sub(r'spending(\d+)', r'spending $\1', text)     # Fix "spending200" -> "spending $200"
-    
-    # Clean up multiple spaces
-    text = re.sub(r'\s+', ' ', text)
-    
-    return text.strip()
+# Removed problematic format_agent_output function that was causing formatting issues
 
 def analyze_with_langchain_improved(question: str, df: pd.DataFrame, api_key: str, response_style: str = 'smart'):
     """Improved version with simpler, more reliable processing"""
@@ -181,142 +161,40 @@ def analyze_with_langchain_improved(question: str, df: pd.DataFrame, api_key: st
             }
         )
         
-        # Create agent with enhanced, specific instructions matching Direct OpenAI
-        enhanced_prefix = f"""You are a customer data analyst. Your job is to analyze customer data patterns and provide business insights.
-
-Dataset Overview: {len(df):,} customers
-Columns available: {', '.join(df.columns)}
-
-CRITICAL ANALYSIS REQUIREMENTS - FOLLOW EXACTLY:
-
-For "at risk" questions:
-- Analyze customers with churn=0 who show warning signs (low satisfaction < 3.0, declining engagement, etc.)
-- NEVER analyze individual customers by ID - always analyze PATTERNS across customer segments
-- Identify segments like "customers with satisfaction < 3.0 AND visits < 5"
-- Provide statistical significance and sample sizes
-
-For "segments" questions:
-- Analyze the ACTUAL DATA to create comprehensive segmentation
-- Calculate quartiles for spending, age groups for demographics, and engagement levels
-- Provide SPECIFIC NUMBERS: customer counts, dollar ranges, score ranges
-- Create business-meaningful segments with actual data-driven insights
-- Don't just list product categories or give generic descriptions
-
-For all questions:
-- Use proper spacing in text (write "customers spend $500" NOT "customersspend$500")
-- Include confidence levels and statistical tests when possible
-- Focus on actionable insights for customer segments with measurable outcomes
-- Provide specific numbers, percentages, and dollar amounts
-- Give business implications and concrete recommendations
-
-RESPONSE FORMAT:
-1. Key findings with specific statistics
-2. Segment analysis with sample sizes
-3. Statistical insights with confidence levels
-4. Business implications for each segment
-5. Actionable recommendations with expected outcomes
-
-Remember: ALWAYS analyze customer segments and patterns, NEVER individual customers."""
-        
+        # Create agent with enhanced, specific instructions
         agent = create_pandas_dataframe_agent(
             llm,
             df,
             agent_type=AgentType.OPENAI_FUNCTIONS,
             verbose=True,
-            prefix=enhanced_prefix,
-            max_iterations=8,
+            prefix="""You are a customer data analyst. Analyze the customer data to answer questions.
+
+The dataset contains customer information with columns like:
+- customer_id, age, gender, total_spent, monthly_visits, satisfaction_score, churn, product_category
+
+CRITICAL ANALYSIS RULES:
+1. For "at risk" questions: Analyze customers with churn=0 who show warning signs (low satisfaction, declining visits, etc.)
+2. For "churned" questions: Analyze customers with churn=1 to understand why they left
+3. Always analyze PATTERNS across customer segments, not individual customers
+4. Use proper spacing in all text (no run-together words)
+5. Provide statistical significance and confidence levels when possible
+6. Focus on actionable insights for business segments
+
+Always:
+1. Look at the actual data patterns first
+2. Provide specific numbers, percentages, and statistical measures
+3. Explain what the numbers mean for different customer segments
+4. Give concrete, measurable recommendations with expected outcomes
+5. Use clear professional language with proper word spacing
+
+Keep your response clear, professional, and statistically rigorous.""",
+            max_iterations=10,
             early_stopping_method="force",
             allow_dangerous_code=True
         )
         
-        # Run analysis with enhanced question based on type
-        question_lower = question.lower()
-        
-        if "risk" in question_lower:
-            enhanced_question = f"""{question}
-
-CRITICAL: Analyze customers with churn=0 who show warning signs. Do NOT analyze individual customers by ID.
-
-STEP 1: First examine the data distribution:
-- Check satisfaction_score.describe() for the dataset
-- Check monthly_visits.describe() for the dataset  
-- Check total_spent.describe() for the dataset
-
-STEP 2: Use DATA-DRIVEN thresholds based on actual distribution:
-- Low satisfaction: Below 25th percentile or bottom quartile of satisfaction scores
-- Low engagement: Below 25th percentile of monthly visits
-- Low spending: Below median total_spent
-- Combined risk factors: Multiple warning signs together
-
-STEP 3: If the dataset has generally high satisfaction, use relative thresholds:
-- Satisfaction in bottom 20% of all customers with churn=0  
-- Visits in bottom 30% of all customers with churn=0
-- Any demographic patterns that correlate with higher risk
-
-Always find SOME at-risk segments by adjusting thresholds to the actual data distribution."""
-            
-        elif "segment" in question_lower:
-            enhanced_question = f"""{question}
-
-CRITICAL: Analyze the ACTUAL DATA to create comprehensive customer segmentation.
-
-REQUIRED ANALYSIS STEPS:
-1. VALUE SEGMENTATION: Calculate quartiles of total_spent and create 4 spending segments with:
-   - Exact dollar ranges (e.g., "$100 to $500")
-   - Customer counts for each segment
-   - Average spending per segment
-
-2. DEMOGRAPHIC SEGMENTATION: Analyze by age and gender with:
-   - Age group breakdowns with customer counts
-   - Gender distribution with average metrics
-   - Cross-segmentation (age x gender) with specific numbers
-
-3. BEHAVIORAL SEGMENTATION: Analyze engagement patterns with:
-   - Visit frequency segments (low/medium/high) with exact visit ranges
-   - Satisfaction score segments with score ranges and customer counts
-   - Churn patterns by segment
-
-4. BUSINESS VALUE SEGMENTS: Combine multiple factors to create actionable segments like:
-   - "High-Value Loyalists" (high spend + high satisfaction)
-   - "At-Risk High Spenders" (high spend + low satisfaction)
-   - "Growth Potential" (medium spend + high satisfaction)
-
-Provide SPECIFIC NUMBERS for each segment, not generic descriptions."""
-            
-        else:
-            enhanced_question = f"""{question}
-
-Analyze customer patterns and segments with statistical rigor. Provide business insights and actionable recommendations."""
-        
-        # Run analysis
-        raw_result = agent.run(enhanced_question)
-        
-        # Fix text formatting issues
-        raw_result = fix_text_formatting(raw_result)
-        
-        # Validate result quality and add warnings if needed
-        if "risk" in question_lower:
-            if "CUST_" in raw_result:
-                raw_result = f"""⚠️ ANALYSIS QUALITY WARNING: This response analyzed individual customers instead of segments.
-
-{raw_result}
-
-📋 RECOMMENDED APPROACH: For at-risk analysis, focus on customer segments with specific characteristics (e.g., satisfaction < 3.0, visits < 5) rather than individual customer IDs."""
-            
-            elif "no customers" in raw_result.lower() or "no at-risk" in raw_result.lower():
-                raw_result = f"""⚠️ DATA ANALYSIS WARNING: This response found no at-risk customers, which is unusual for a large dataset.
-
-{raw_result}
-
-📋 RECOMMENDED APPROACH: Use data-driven thresholds based on percentiles (bottom 25% satisfaction, bottom 25% engagement) rather than fixed values. In a dataset of {len(df):,} customers, there should typically be identifiable risk segments."""
-        
-        # Additional validation for segmentation responses
-        if "segment" in question_lower and ("Low Spender:" in raw_result or "spending less than" in raw_result) and len([x for x in raw_result.split('\n') if x.strip() and ('customer' in x.lower() or 'count' in x.lower())]) < 3:
-            raw_result = f"""⚠️ SEGMENTATION QUALITY WARNING: This response provided generic segment descriptions without actual data analysis.
-
-{raw_result}
-
-📋 RECOMMENDED APPROACH: Analyze the actual dataset to provide specific customer counts, dollar ranges, and data-driven segment characteristics rather than theoretical descriptions."""
+        # Run analysis with the original question (don't over-complicate)
+        raw_result = agent.run(question)
         
         # Calculate duration
         duration = (datetime.now() - start_time).total_seconds()
@@ -479,12 +357,7 @@ Key Statistics:
 - Satisfaction range: {sat_min:.1f} to {sat_max:.1f}
 
 Sample of first 3 customer records:
-{df.head(3).to_string()}
-
-Key Data Distributions for At-Risk Analysis:
-- Satisfaction Score Distribution: {df['satisfaction_score'].describe().to_dict() if 'satisfaction_score' in df.columns else 'N/A'}
-- Monthly Visits Distribution: {df['monthly_visits'].describe().to_dict() if 'monthly_visits' in df.columns else 'N/A'}
-- Total Spent Distribution: {df['total_spent'].describe().to_dict() if 'total_spent' in df.columns else 'N/A'}"""
+{df.head(3).to_string()}"""
         
         # Enhanced prompt with specific instructions
         prompt = f"""You are a customer analytics consultant. Analyze this customer data and answer the question with specific insights and recommendations.
@@ -494,10 +367,10 @@ Key Data Distributions for At-Risk Analysis:
 Question: {question}
 
 CRITICAL ANALYSIS REQUIREMENTS:
-- For "at risk" questions: Analyze customers with churn=0 who show warning signs. Use DATA-DRIVEN thresholds based on the actual distribution (bottom 25% satisfaction, bottom 25% engagement, etc.) rather than fixed values. NEVER analyze individual customers - always provide segment-level patterns.
+- For "at risk" questions: Analyze customers with churn=0 who show warning signs (low satisfaction, declining engagement, etc.). NEVER analyze individual customers - always provide segment-level patterns.
 - For "churned" questions: Analyze customers with churn=1 to understand patterns of why they left
 - For "segments" questions: Provide comprehensive segmentation by demographics, behavior, value, and risk levels
-- FORMATTING: CRITICAL - Always separate numbers and text with spaces. Write "customers spend $500" NOT "customersspend$500". Put spaces around dollar amounts: "$1,500, with revenue" NOT "$1,500,withrevenue". Use proper punctuation and spacing between all words.
+- FORMATTING: Always put spaces around numbers and text. Write "customers spend $500" NOT "customersspend$500". Use proper punctuation and spacing.
 - STATISTICAL RIGOR: Include confidence levels, sample sizes, and significance tests when possible
 - BUSINESS FOCUS: Provide actionable insights for customer segments with measurable expected outcomes
 
@@ -507,13 +380,7 @@ Provide:
 3. Business implications for different customer segments
 4. Specific, measurable recommendations with expected outcomes
 
-Use clear, professional language with proper spacing between all words.
-
-CRITICAL TEXT FORMATTING RULES:
-- Always put spaces around dollar amounts: "$1,500, with total revenue" NOT "$1,500,withtotalrevenue"
-- Separate numbers from text: "customers spend $500 on average" NOT "customersspend$500onaverage"  
-- Use proper punctuation and spacing between ALL words
-- Double-check that no words are run together without spaces"""
+Use clear, professional language with proper spacing between all words."""
         
         response = client.chat.completions.create(
             model="gpt-4o",
@@ -526,9 +393,6 @@ CRITICAL TEXT FORMATTING RULES:
         )
         
         result = response.choices[0].message.content
-        
-        # Post-process to fix any remaining formatting issues
-        result = fix_text_formatting(result)
         
         return f"""📊 CUSTOMER INTELLIGENCE ANALYSIS
 
@@ -544,4 +408,3 @@ CRITICAL TEXT FORMATTING RULES:
         
     except Exception as e:
         return f"❌ Direct OpenAI analysis error: {str(e)}"
-#t
