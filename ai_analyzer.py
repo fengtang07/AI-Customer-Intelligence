@@ -365,3 +365,18 @@ if __name__ == "__main__":
     print("Debug Environment:")
     print(debug_environment())
     print("\n✅ Module loaded successfully. Add API key to test AI functions.")
+
+# Function aliases for Streamlit app compatibility
+def analyze_with_langchain(question: str, df: pd.DataFrame, api_key: str, response_style: str = 'smart'):
+    """LangChain analysis - alias for improved version"""
+    try:
+        return analyze_with_langchain_improved(question, df, api_key, response_style)
+    except Exception as e:
+        return f"❌ LangChain analysis error: {str(e)}"
+
+def analyze_with_direct_openai(question: str, df: pd.DataFrame, api_key: str, response_style: str = 'smart'):
+    """Direct OpenAI analysis - fallback to main AI function"""
+    try:
+        return analyze_with_ai(question, df, api_key, use_langchain=False, response_style=response_style)
+    except Exception as e:
+        return f"❌ Direct OpenAI analysis error: {str(e)}"
