@@ -142,11 +142,13 @@ def fix_text_formatting(text: str) -> str:
     text = re.sub(r'(\d+\.?\d*)([a-zA-Z])', r'\1 \2', text)    # Add space between number and letter
     text = re.sub(r'([a-zA-Z])(\d+\.?\d*)', r'\1 \2', text)    # Add space between letter and number
     
-    # Fix specific problematic patterns
+    # Fix specific problematic patterns from segmentation
+    text = re.sub(r'(\d+)and(\d+)', r'\1 and \2', text)        # Fix "200and500" -> "200 and 500"
     text = re.sub(r'\$(\d+\.?\d*),with', r'$\1, with', text)
     text = re.sub(r'(\d+\.?\d*),with', r'\1, with', text)
     text = re.sub(r'amountingto\$', r'amounting to $', text)
     text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)  # Add space between lowercase and uppercase
+    text = re.sub(r'spending(\d+)', r'spending $\1', text)     # Fix "spending200" -> "spending $200"
     
     # Clean up multiple spaces
     text = re.sub(r'\s+', ' ', text)
@@ -194,9 +196,11 @@ For "at risk" questions:
 - Provide statistical significance and sample sizes
 
 For "segments" questions:
-- Provide comprehensive segmentation by demographics, behavior, value, and risk levels
-- Include segment sizes, characteristics, and business implications
-- Don't just list product categories - create meaningful business segments
+- Analyze the ACTUAL DATA to create comprehensive segmentation
+- Calculate quartiles for spending, age groups for demographics, and engagement levels
+- Provide SPECIFIC NUMBERS: customer counts, dollar ranges, score ranges
+- Create business-meaningful segments with actual data-driven insights
+- Don't just list product categories or give generic descriptions
 
 For all questions:
 - Use proper spacing in text (write "customers spend $500" NOT "customersspend$500")
@@ -254,8 +258,30 @@ Always find SOME at-risk segments by adjusting thresholds to the actual data dis
         elif "segment" in question_lower:
             enhanced_question = f"""{question}
 
-CRITICAL: Provide comprehensive customer segmentation by demographics, behavior, value, and risk. 
-Include segment sizes, characteristics, and business implications. Don't just list product categories."""
+CRITICAL: Analyze the ACTUAL DATA to create comprehensive customer segmentation.
+
+REQUIRED ANALYSIS STEPS:
+1. VALUE SEGMENTATION: Calculate quartiles of total_spent and create 4 spending segments with:
+   - Exact dollar ranges (e.g., "$100 to $500")
+   - Customer counts for each segment
+   - Average spending per segment
+
+2. DEMOGRAPHIC SEGMENTATION: Analyze by age and gender with:
+   - Age group breakdowns with customer counts
+   - Gender distribution with average metrics
+   - Cross-segmentation (age x gender) with specific numbers
+
+3. BEHAVIORAL SEGMENTATION: Analyze engagement patterns with:
+   - Visit frequency segments (low/medium/high) with exact visit ranges
+   - Satisfaction score segments with score ranges and customer counts
+   - Churn patterns by segment
+
+4. BUSINESS VALUE SEGMENTS: Combine multiple factors to create actionable segments like:
+   - "High-Value Loyalists" (high spend + high satisfaction)
+   - "At-Risk High Spenders" (high spend + low satisfaction)
+   - "Growth Potential" (medium spend + high satisfaction)
+
+Provide SPECIFIC NUMBERS for each segment, not generic descriptions."""
             
         else:
             enhanced_question = f"""{question}
@@ -283,6 +309,14 @@ Analyze customer patterns and segments with statistical rigor. Provide business 
 {raw_result}
 
 📋 RECOMMENDED APPROACH: Use data-driven thresholds based on percentiles (bottom 25% satisfaction, bottom 25% engagement) rather than fixed values. In a dataset of {len(df):,} customers, there should typically be identifiable risk segments."""
+        
+        # Additional validation for segmentation responses
+        if "segment" in question_lower and ("Low Spender:" in raw_result or "spending less than" in raw_result) and len([x for x in raw_result.split('\n') if x.strip() and ('customer' in x.lower() or 'count' in x.lower())]) < 3:
+            raw_result = f"""⚠️ SEGMENTATION QUALITY WARNING: This response provided generic segment descriptions without actual data analysis.
+
+{raw_result}
+
+📋 RECOMMENDED APPROACH: Analyze the actual dataset to provide specific customer counts, dollar ranges, and data-driven segment characteristics rather than theoretical descriptions."""
         
         # Calculate duration
         duration = (datetime.now() - start_time).total_seconds()
