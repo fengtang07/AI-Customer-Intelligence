@@ -2,6 +2,7 @@
 streamlit>=1.28.0
 pandas>=2.2.0
 numpy>=1.26.0
+tabulate
 
 # AI/ML - Simplified for deployment stability
 openai>=1.0.0
