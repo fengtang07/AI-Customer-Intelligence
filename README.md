@@ -86,7 +86,6 @@ streamlit run app.py
 ├── app.py                 # Main Streamlit application
 ├── ai_analyzer.py         # AI analysis engine with OpenAI and LangGraph integration
 ├── requirements.txt       # Python dependencies
-├── goodlangchain.py      # Reference LangGraph implementation (optional)
 └── README.md             # Project documentation
 ```
 
