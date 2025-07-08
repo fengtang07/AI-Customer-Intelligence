@@ -544,3 +544,4 @@ CRITICAL TEXT FORMATTING RULES:
         
     except Exception as e:
         return f"❌ Direct OpenAI analysis error: {str(e)}"
+#t
