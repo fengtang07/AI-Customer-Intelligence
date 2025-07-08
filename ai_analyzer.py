@@ -20,7 +20,7 @@ ENHANCED_AVAILABLE = True
 warnings.filterwarnings('ignore')
 
 def get_openai_api_key():
-    """Get OpenAI API key from Streamlit secrets or environment variables"""
+    """Get OpenAI API key from Streamlit secrets, environment variables, or hardcoded fallback"""
     try:
         # First try to get from Streamlit secrets
         import streamlit as st
@@ -30,7 +30,11 @@ def get_openai_api_key():
         pass
     
     # Fall back to environment variable
-    return os.environ.get('OPENAI_API_KEY', None)
+    env_key = os.environ.get('OPENAI_API_KEY', None)
+    if env_key:
+        return env_key
+    
+    # Final fallback - hardcoded key for testing
 
 # Get the API key
 OPENAI_API_KEY = get_openai_api_key()
