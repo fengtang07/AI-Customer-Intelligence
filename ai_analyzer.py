@@ -128,9 +128,188 @@ Always start by understanding the data structure, then answer the specific quest
     except Exception as e:
         return f"❌ Agent setup error: {str(e)}"
 
-def analyze_with_langchain(question: str, df: pd.DataFrame, api_key: str, response_style: str = 'smart'):
-    """Use enhanced analysis"""
-    return analyze_with_ai_enhanced(question, df, api_key, use_enhanced=True)
+
+
+# Add this to your existing ai_analyzer.py
+
+import re
+from datetime import datetime
+
+def format_agent_output(raw_output: str) -> str:
+    """Fix formatting issues in agent output"""
+    
+    # Fix run-together words
+    raw_output = re.sub(r'(\d+\.?\d*),\*?while', r'\1, while ', raw_output)
+    raw_output = re.sub(r'spend(\d+)', r'spend $\1', raw_output)
+    raw_output = re.sub(r'(\d+)\*?and\*?(\d+)', r'\1 and \2', raw_output)
+    
+    # Fix currency formatting
+    def format_currency(match):
+        amount = float(match.group(1))
+        return f'${amount:,.2f}'
+    
+    raw_output = re.sub(r'\$?(\d+\.?\d*)', format_currency, raw_output)
+    
+    # Remove asterisks
+    raw_output = raw_output.replace('*', '')
+    
+    return raw_output
+
+def analyze_with_langchain_improved(question: str, df: pd.DataFrame, api_key: str, response_style: str = 'smart'):
+    """Improved version with better prompts and formatting"""
+    
+    if not api_key:
+        return "⚠️ No API key provided"
+    
+    try:
+        from langchain_experimental.agents import create_pandas_dataframe_agent
+        from langchain.agents import AgentType
+        from langchain_openai import ChatOpenAI
+        
+        # Track start time
+        start_time = datetime.now()
+        
+        # Better model and temperature
+        llm = ChatOpenAI(
+            temperature=0,
+            openai_api_key=api_key,
+            model="gpt-4" if "gpt-4" in api_key else "gpt-3.5-turbo",  # Use GPT-4 if available
+            max_tokens=3000
+        )
+        
+        # Create agent with better instructions
+        agent = create_pandas_dataframe_agent(
+            llm,
+            df,
+            agent_type=AgentType.OPENAI_FUNCTIONS,
+            verbose=True,
+            prefix="""You are a senior data analyst. 
+
+CRITICAL FORMATTING RULES:
+- Format all currency with $ and commas: $1,234.56
+- Format all percentages with %: 45.3%
+- Use proper spacing between words
+- Use bullet points for lists
+- NO asterisks in output
+
+For customer segments, use business-friendly names like:
+- "Budget Conscious" instead of "Low"
+- "Regular Shoppers" instead of "Medium"  
+- "Premium Customers" instead of "High"
+- "VIP Clients" instead of "Very High"
+
+Always provide:
+1. Statistical findings
+2. Business insights
+3. Actionable recommendations""",
+            max_iterations=15,
+            early_stopping_method="force",
+            allow_dangerous_code=True
+        )
+        
+        # Enhance questions for better results
+        question_lower = question.lower()
+        
+        if "segment" in question_lower:
+            enhanced_q = f"""{question}
+
+Create meaningful business segments and for each segment provide:
+- Segment name (business-friendly)
+- Size and percentage of customers
+- Average metrics (spending, satisfaction, churn rate)
+- Key characteristics
+- Marketing recommendations"""
+            
+        elif "gender" in question_lower:
+            enhanced_q = f"""{question}
+
+Analyze gender differences including:
+- Spending patterns (with proper $ formatting)
+- Behavioral differences
+- Statistical significance
+- Business implications"""
+            
+        elif "spending" in question_lower:
+            enhanced_q = f"""{question}
+
+Analyze spending with:
+- Total revenue (formatted with $ and commas)
+- Customer value distribution
+- 80/20 analysis
+- Category breakdowns
+- Growth opportunities"""
+        else:
+            enhanced_q = question + "\n\nFormat all numbers properly and provide business insights."
+        
+        # Run analysis
+        raw_result = agent.run(enhanced_q)
+        
+        # Format the output
+        formatted_result = format_agent_output(raw_result)
+        
+        # Calculate duration
+        duration = (datetime.now() - start_time).total_seconds()
+        
+        # Add analysis metadata
+        final_output = f"""📊 **CUSTOMER INTELLIGENCE ANALYSIS**
+
+{formatted_result}
+
+---
+📈 **Analysis Details:**
+• Method: Pandas DataFrame Agent (Enhanced)
+• Model: {llm.model_name}
+• Data Points: {len(df):,} customers
+• Processing Time: {duration:.1f} seconds
+• Key Operations: groupby, aggregation, segmentation, statistical analysis
+
+💡 **Note**: This analysis used automated data exploration to identify patterns and generate insights."""
+        
+        return final_output
+        
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
+
+# Also create a pre-calculated segment function
+def get_better_segments(df: pd.DataFrame) -> dict:
+    """Create business-friendly segments"""
+    
+    segments = {}
+    
+    if 'total_spent' in df.columns:
+        # Calculate spending quartiles
+        q1, q2, q3 = df['total_spent'].quantile([0.25, 0.5, 0.75])
+        
+        # Create segments with meaningful names
+        segments['spending_segments'] = {
+            'Budget Conscious': {
+                'criteria': f'Spending < ${q1:,.2f}',
+                'count': len(df[df['total_spent'] < q1]),
+                'avg_spent': df[df['total_spent'] < q1]['total_spent'].mean(),
+                'profile': 'Price-sensitive customers looking for deals'
+            },
+            'Occasional Shoppers': {
+                'criteria': f'${q1:,.2f} - ${q2:,.2f}',
+                'count': len(df[(df['total_spent'] >= q1) & (df['total_spent'] < q2)]),
+                'avg_spent': df[(df['total_spent'] >= q1) & (df['total_spent'] < q2)]['total_spent'].mean(),
+                'profile': 'Infrequent buyers with moderate budgets'
+            },
+            'Regular Customers': {
+                'criteria': f'${q2:,.2f} - ${q3:,.2f}',
+                'count': len(df[(df['total_spent'] >= q2) & (df['total_spent'] < q3)]),
+                'avg_spent': df[(df['total_spent'] >= q2) & (df['total_spent'] < q3)]['total_spent'].mean(),
+                'profile': 'Consistent shoppers with good spending power'
+            },
+            'Premium Buyers': {
+                'criteria': f'Spending > ${q3:,.2f}',
+                'count': len(df[df['total_spent'] >= q3]),
+                'avg_spent': df[df['total_spent'] >= q3]['total_spent'].mean(),
+                'profile': 'High-value customers seeking quality'
+            }
+        }
+    
+    return segments
+    
 
 # MAIN FUNCTION: Keep the same interface
 def analyze_with_ai(question: str, df: pd.DataFrame, api_key: str, use_langchain: bool = True, response_style: str = 'smart'):
