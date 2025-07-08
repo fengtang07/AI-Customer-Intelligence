@@ -16,7 +16,11 @@ try:
     from langchain_experimental.agents import create_pandas_dataframe_agent
     from langchain.agents import AgentType
     from langchain_openai import ChatOpenAI
-    from langchain.callbacks import BaseCallbackHandler
+    # Try new import location first, fallback to old
+    try:
+        from langchain_core.callbacks import BaseCallbackHandler
+    except ImportError:
+        from langchain.callbacks import BaseCallbackHandler
     LANGCHAIN_AVAILABLE = True
 except ImportError:
     LANGCHAIN_AVAILABLE = False
