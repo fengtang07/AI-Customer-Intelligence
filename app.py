@@ -432,29 +432,9 @@ def display_ai_chat(df):
     # Set default response style since we removed the selector
     st.session_state.chat_mode = "smart"
 
-    # Get API key from secrets or user input
-    api_key_from_secrets = get_openai_api_key()
+    # Get API key from secrets or hardcoded
+    current_api_key = get_openai_api_key()
     
-    if api_key_from_secrets and api_key_from_secrets.startswith('sk-'):
-        # API key found in secrets - show success message
-        st.success("🔑 API Key: Loaded from Streamlit secrets")
-        current_api_key = api_key_from_secrets
-        st.session_state.openai_api_key = api_key_from_secrets
-    else:
-        # No API key in secrets - show input field
-        st.info("💡 Add your OpenAI API key to Streamlit secrets for automatic loading")
-        api_key = st.text_input(
-            "OpenAI API Key:",
-            type="password",
-            value=st.session_state.get('openai_api_key', ''),
-            help="Required for AI analysis. Add to Streamlit secrets for automatic loading."
-        )
-        
-        if api_key != st.session_state.get('openai_api_key', ''):
-            st.session_state.openai_api_key = api_key
-        
-        current_api_key = st.session_state.get('openai_api_key', '')
-
     # Check prerequisites
     if not AI_AVAILABLE:
         st.error("AI functionality is not available")
@@ -462,11 +442,12 @@ def display_ai_chat(df):
         return
 
     if not current_api_key:
-        st.warning("Please add your OpenAI API key to Streamlit secrets or enter it above to enable AI chat")
+        st.error("No API key available")
         return
 
-    # AI status
-    st.success(f"🤖 AI Ready | Method: {st.session_state.analysis_method.title()} | Key: {'Secrets' if api_key_from_secrets else 'Manual'}")
+    # Simple status indicators
+    st.success("🔑 API Key: Loaded from Streamlit secrets")
+    st.success(f"🤖 AI Ready | Method: {st.session_state.analysis_method.title()}")
 
     # Sample questions
     st.markdown("### Try These Questions")
@@ -487,10 +468,7 @@ def display_ai_chat(df):
             if i + j < len(sample_questions):
                 question_text = sample_questions[i + j]
                 if col.button(question_text, key=f"sample_q_{i + j}"):
-                    if current_api_key:
-                        process_ai_question(question_text, df)
-                    else:
-                        st.error("Please add your OpenAI API key to Streamlit secrets or enter it above")
+                    process_ai_question(question_text, df)
 
     # Chat input
     st.markdown("### Ask Your Question")
@@ -506,10 +484,7 @@ def display_ai_chat(df):
 
     # Process question
     if ask_submitted and user_question.strip():
-        if not current_api_key:
-            st.error("Please add your OpenAI API key to Streamlit secrets or enter it above")
-        else:
-            process_ai_question(user_question, df)
+        process_ai_question(user_question, df)
     elif ask_submitted and not user_question.strip():
         st.warning("Please enter a question before submitting")
 
@@ -1050,8 +1025,7 @@ def main():
             display_ai_chat(df)
 
 # Run the application
-if __name__ == "__main__":
-    main()
+main()
 
 # Modern footer
 st.markdown("---")
