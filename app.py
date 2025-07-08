@@ -422,13 +422,13 @@ def display_ai_chat(df):
     # AI Analysis Method
     analysis_method = st.selectbox(
         "AI Analysis Method:",
-        ["Direct OpenAI (Recommended)", "LangChain Agent (Experimental)"],
+        ["Direct OpenAI", "LangChain Agent"],
         index=1 if st.session_state.analysis_method == 'langchain' else 0,
         help="Direct OpenAI provides comprehensive, well-formatted analysis with GPT-4o. LangChain Agent offers data exploration tools but may have formatting issues."
     )
     
     # Update session state
-    if analysis_method == "LangChain Agent (Experimental)":
+    if analysis_method == "LangChain Agent":
         st.session_state.analysis_method = 'langchain'
     else:
         st.session_state.analysis_method = 'direct'
@@ -450,7 +450,7 @@ def display_ai_chat(df):
         return
 
     # Simple status indicators
-    st.success("🔑 API Key: Loaded from Streamlit secrets")
+    st.success("🔑 API Key: Loaded")
     st.success(f"🤖 AI Ready | Method: {st.session_state.analysis_method.title()}")
 
     # Sample questions
