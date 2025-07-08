@@ -1,4 +1,4 @@
-# AI Customer Intelligence Agent
+# LangGraph +OpenAI AI Customer Intelligence Agent
 
 A comprehensive customer analytics platform built with Streamlit that provides automated data generation, advanced analytics, and AI-powered insights for e-commerce businesses.
 
