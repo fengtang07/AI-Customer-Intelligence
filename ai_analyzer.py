@@ -231,15 +231,25 @@ Remember: ALWAYS analyze customer segments and patterns, NEVER individual custom
         if "risk" in question_lower:
             enhanced_question = f"""{question}
 
-CRITICAL: Analyze customers with churn=0 who show warning signs. Do NOT analyze individual customers by ID. 
+CRITICAL: Analyze customers with churn=0 who show warning signs. Do NOT analyze individual customers by ID.
 
-Find at-risk segments using realistic criteria like:
-- Low satisfaction (below 3.5 or in bottom 25%)
-- Low engagement (below median visits)  
-- Low spending (below median spending)
-- Demographic patterns that correlate with higher churn risk
+STEP 1: First examine the data distribution:
+- Check satisfaction_score.describe() for the dataset
+- Check monthly_visits.describe() for the dataset  
+- Check total_spent.describe() for the dataset
 
-Provide segment-level patterns with sample sizes and statistical significance. If few customers meet strict criteria, use more realistic thresholds."""
+STEP 2: Use DATA-DRIVEN thresholds based on actual distribution:
+- Low satisfaction: Below 25th percentile or bottom quartile of satisfaction scores
+- Low engagement: Below 25th percentile of monthly visits
+- Low spending: Below median total_spent
+- Combined risk factors: Multiple warning signs together
+
+STEP 3: If the dataset has generally high satisfaction, use relative thresholds:
+- Satisfaction in bottom 20% of all customers with churn=0  
+- Visits in bottom 30% of all customers with churn=0
+- Any demographic patterns that correlate with higher risk
+
+Always find SOME at-risk segments by adjusting thresholds to the actual data distribution."""
             
         elif "segment" in question_lower:
             enhanced_question = f"""{question}
@@ -259,12 +269,20 @@ Analyze customer patterns and segments with statistical rigor. Provide business 
         raw_result = fix_text_formatting(raw_result)
         
         # Validate result quality and add warnings if needed
-        if "risk" in question_lower and "CUST_" in raw_result:
-            raw_result = f"""⚠️ ANALYSIS QUALITY WARNING: This response analyzed individual customers instead of segments.
+        if "risk" in question_lower:
+            if "CUST_" in raw_result:
+                raw_result = f"""⚠️ ANALYSIS QUALITY WARNING: This response analyzed individual customers instead of segments.
 
 {raw_result}
 
 📋 RECOMMENDED APPROACH: For at-risk analysis, focus on customer segments with specific characteristics (e.g., satisfaction < 3.0, visits < 5) rather than individual customer IDs."""
+            
+            elif "no customers" in raw_result.lower() or "no at-risk" in raw_result.lower():
+                raw_result = f"""⚠️ DATA ANALYSIS WARNING: This response found no at-risk customers, which is unusual for a large dataset.
+
+{raw_result}
+
+📋 RECOMMENDED APPROACH: Use data-driven thresholds based on percentiles (bottom 25% satisfaction, bottom 25% engagement) rather than fixed values. In a dataset of {len(df):,} customers, there should typically be identifiable risk segments."""
         
         # Calculate duration
         duration = (datetime.now() - start_time).total_seconds()
@@ -427,7 +445,12 @@ Key Statistics:
 - Satisfaction range: {sat_min:.1f} to {sat_max:.1f}
 
 Sample of first 3 customer records:
-{df.head(3).to_string()}"""
+{df.head(3).to_string()}
+
+Key Data Distributions for At-Risk Analysis:
+- Satisfaction Score Distribution: {df['satisfaction_score'].describe().to_dict() if 'satisfaction_score' in df.columns else 'N/A'}
+- Monthly Visits Distribution: {df['monthly_visits'].describe().to_dict() if 'monthly_visits' in df.columns else 'N/A'}
+- Total Spent Distribution: {df['total_spent'].describe().to_dict() if 'total_spent' in df.columns else 'N/A'}"""
         
         # Enhanced prompt with specific instructions
         prompt = f"""You are a customer analytics consultant. Analyze this customer data and answer the question with specific insights and recommendations.
@@ -437,7 +460,7 @@ Sample of first 3 customer records:
 Question: {question}
 
 CRITICAL ANALYSIS REQUIREMENTS:
-- For "at risk" questions: Analyze customers with churn=0 who show warning signs (low satisfaction, declining engagement, etc.). NEVER analyze individual customers - always provide segment-level patterns.
+- For "at risk" questions: Analyze customers with churn=0 who show warning signs. Use DATA-DRIVEN thresholds based on the actual distribution (bottom 25% satisfaction, bottom 25% engagement, etc.) rather than fixed values. NEVER analyze individual customers - always provide segment-level patterns.
 - For "churned" questions: Analyze customers with churn=1 to understand patterns of why they left
 - For "segments" questions: Provide comprehensive segmentation by demographics, behavior, value, and risk levels
 - FORMATTING: CRITICAL - Always separate numbers and text with spaces. Write "customers spend $500" NOT "customersspend$500". Put spaces around dollar amounts: "$1,500, with revenue" NOT "$1,500,withrevenue". Use proper punctuation and spacing between all words.
