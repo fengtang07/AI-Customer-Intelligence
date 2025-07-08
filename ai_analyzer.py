@@ -12,6 +12,11 @@ import platform
 from typing import Dict, Any, Optional, List
 import warnings
 
+from enhanced_ai_analyzer import (
+    analyze_with_ai_enhanced,
+    create_business_focused_segments
+)
+
 warnings.filterwarnings('ignore')
 
 # Keep your existing debug and test functions
@@ -123,160 +128,9 @@ Always start by understanding the data structure, then answer the specific quest
     except Exception as e:
         return f"❌ Agent setup error: {str(e)}"
 
-# IMPROVED: Simplified analysis function
 def analyze_with_langchain(question: str, df: pd.DataFrame, api_key: str, response_style: str = 'smart'):
-    """Analyze customer data using improved LangChain agent"""
-    if not api_key:
-        return "⚠️ No API key provided"
-    
-    try:
-        agent = setup_langchain_agent(api_key, df)
-        
-        if isinstance(agent, str):
-            return f"❌ LangChain setup failed: {agent}"
-        
-        # Map common questions to specific prompts for better results
-        question_lower = question.lower()
-        
-        if "churn" in question_lower and ("why" in question_lower or "driver" in question_lower):
-            enhanced_question = f"""
-{question}
-
-To answer this:
-1. Calculate the correlation between churn and other numeric features
-2. Compare average values between churned (churn=1) and retained (churn=0) customers
-3. Identify the top 3 factors that differ most between churned and retained customers
-4. Provide specific numbers and percentages
-"""
-        elif "segment" in question_lower:
-            enhanced_question = f"""
-{question}
-
-To answer this:
-1. Create customer segments based on total_spent using quartiles or meaningful thresholds
-2. Show the size of each segment and their characteristics
-3. Calculate key metrics (churn rate, avg satisfaction) for each segment
-4. Use pandas groupby operations and show specific numbers
-"""
-        elif "risk" in question_lower or "at risk" in question_lower:
-            enhanced_question = f"""
-{question}
-
-To answer this:
-1. Define at-risk as: active customers (churn=0) with low satisfaction (<3.5) or low engagement
-2. Count how many customers meet these criteria
-3. Show their average spending and other characteristics
-4. Use pandas filtering and provide specific counts
-"""
-        elif "spending" in question_lower or "revenue" in question_lower or "value" in question_lower:
-            enhanced_question = f"""
-{question}
-
-To answer this:
-1. Calculate total revenue, average customer value, and distribution
-2. Find the top 20% customers' contribution to revenue
-3. Analyze spending patterns by segments or categories
-4. Show specific dollar amounts and percentages
-"""
-        elif "satisfaction" in question_lower:
-            enhanced_question = f"""
-{question}
-
-To answer this:
-1. Calculate satisfaction statistics (mean, distribution)
-2. Show satisfaction by customer segments
-3. Analyze correlation between satisfaction and churn
-4. Provide specific scores and percentages
-"""
-        else:
-            enhanced_question = f"""
-{question}
-
-Please provide specific numbers, calculations, and data-driven insights.
-"""
-        
-        # Run the agent
-        result = agent.run(enhanced_question)
-        
-        # Format the result based on style
-        if response_style == 'concise':
-            formatted_result = f"""**Analysis Result:**
-{result}"""
-        else:
-            formatted_result = f"""🤖 **LangChain Agent Analysis:**
-
-{result}
-
-✅ **Method:** Pandas DataFrame Agent
-📊 **Data Points:** {len(df):,} customers analyzed
-"""
-        
-        return formatted_result
-        
-    except Exception as e:
-        return f"❌ LangChain analysis error: {str(e)}\n\n{traceback.format_exc()}"
-
-# IMPROVED: Direct OpenAI analysis
-def analyze_with_direct_openai(question: str, df: pd.DataFrame, api_key: str, response_style: str = 'smart'):
-    """Direct OpenAI analysis - simplified version"""
-    try:
-        from openai import OpenAI
-        
-        client = OpenAI(api_key=api_key, timeout=60.0, max_retries=3)
-        
-        # Create data summary
-        data_summary = f"""
-Dataset Overview:
-- Total customers: {len(df):,}
-- Columns: {list(df.columns)}
-"""
-        
-        if 'churn' in df.columns:
-            data_summary += f"- Churn rate: {df['churn'].mean()*100:.1f}%\n"
-        
-        if 'total_spent' in df.columns:
-            data_summary += f"- Avg spending: ${df['total_spent'].mean():.2f}\n"
-            
-        if 'satisfaction_score' in df.columns:
-            data_summary += f"- Avg satisfaction: {df['satisfaction_score'].mean():.2f}/5.0\n"
-        
-        data_summary += f"\nSample data:\n{df.head(5).to_string()}"
-        
-        prompt = f"""
-You are a data analyst. Based on this customer data:
-
-{data_summary}
-
-Question: {question}
-
-Provide:
-1. Direct answer with specific numbers
-2. Key insights
-3. Actionable recommendations
-
-Be specific and use the actual data provided.
-"""
-        
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a data analyst specializing in customer analytics."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=1000,
-            temperature=0.1
-        )
-        
-        return f"""🤖 **Direct OpenAI Analysis:**
-
-{response.choices[0].message.content}
-
-✅ **Method:** Direct OpenAI API
-📊 **Data Points:** {len(df):,} customers analyzed
-"""
-        
-    except Exception as e:
-        return f"❌ Direct OpenAI error: {str(e)}"
+    """Use enhanced analysis"""
+    return analyze_with_ai_enhanced(question, df, api_key, use_enhanced=True)
 
 # MAIN FUNCTION: Keep the same interface
 def analyze_with_ai(question: str, df: pd.DataFrame, api_key: str, use_langchain: bool = True, response_style: str = 'smart'):
