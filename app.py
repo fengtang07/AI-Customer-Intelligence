@@ -422,7 +422,7 @@ def display_ai_chat(df):
     # AI Analysis Method
     analysis_method = st.selectbox(
         "AI Analysis Method:",
-        ["Direct OpenAI", "LangChain Agent"],
+        ["Direct OpenAI (Recommended)", "LangChain Agent (Experimental)"],
         index=1 if st.session_state.analysis_method == 'langchain' else 0,
         help="Direct OpenAI provides comprehensive, well-formatted analysis with GPT-4o. LangChain Agent offers data exploration tools but may have formatting issues."
     )
