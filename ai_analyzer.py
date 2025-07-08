@@ -133,25 +133,7 @@ Always start by understanding the data structure, then answer the specific quest
 import re
 from datetime import datetime
 
-def fix_text_formatting(text: str) -> str:
-    """Fix common text formatting issues"""
-    import re
-    
-    # Fix run-together numbers and text
-    text = re.sub(r'(\d+\.?\d*),([a-zA-Z])', r'\1, \2', text)  # Add space after comma+number
-    text = re.sub(r'(\d+\.?\d*)([a-zA-Z])', r'\1 \2', text)    # Add space between number and letter
-    text = re.sub(r'([a-zA-Z])(\d+\.?\d*)', r'\1 \2', text)    # Add space between letter and number
-    
-    # Fix specific problematic patterns
-    text = re.sub(r'\$(\d+\.?\d*),with', r'$\1, with', text)
-    text = re.sub(r'(\d+\.?\d*),with', r'\1, with', text)
-    text = re.sub(r'amountingto\$', r'amounting to $', text)
-    text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)  # Add space between lowercase and uppercase
-    
-    # Clean up multiple spaces
-    text = re.sub(r'\s+', ' ', text)
-    
-    return text.strip()
+# Removed problematic format_agent_output function that was causing formatting issues
 
 def analyze_with_langchain_improved(question: str, df: pd.DataFrame, api_key: str, response_style: str = 'smart'):
     """Improved version with simpler, more reliable processing"""
@@ -179,92 +161,40 @@ def analyze_with_langchain_improved(question: str, df: pd.DataFrame, api_key: st
             }
         )
         
-        # Create agent with enhanced, specific instructions matching Direct OpenAI
-        enhanced_prefix = f"""You are a customer data analyst. Your job is to analyze customer data patterns and provide business insights.
-
-Dataset Overview: {len(df):,} customers
-Columns available: {', '.join(df.columns)}
-
-CRITICAL ANALYSIS REQUIREMENTS - FOLLOW EXACTLY:
-
-For "at risk" questions:
-- Analyze customers with churn=0 who show warning signs (low satisfaction < 3.0, declining engagement, etc.)
-- NEVER analyze individual customers by ID - always analyze PATTERNS across customer segments
-- Identify segments like "customers with satisfaction < 3.0 AND visits < 5"
-- Provide statistical significance and sample sizes
-
-For "segments" questions:
-- Provide comprehensive segmentation by demographics, behavior, value, and risk levels
-- Include segment sizes, characteristics, and business implications
-- Don't just list product categories - create meaningful business segments
-
-For all questions:
-- Use proper spacing in text (write "customers spend $500" NOT "customersspend$500")
-- Include confidence levels and statistical tests when possible
-- Focus on actionable insights for customer segments with measurable outcomes
-- Provide specific numbers, percentages, and dollar amounts
-- Give business implications and concrete recommendations
-
-RESPONSE FORMAT:
-1. Key findings with specific statistics
-2. Segment analysis with sample sizes
-3. Statistical insights with confidence levels
-4. Business implications for each segment
-5. Actionable recommendations with expected outcomes
-
-Remember: ALWAYS analyze customer segments and patterns, NEVER individual customers."""
-        
+        # Create agent with enhanced, specific instructions
         agent = create_pandas_dataframe_agent(
             llm,
             df,
             agent_type=AgentType.OPENAI_FUNCTIONS,
             verbose=True,
-            prefix=enhanced_prefix,
-            max_iterations=8,
+            prefix="""You are a customer data analyst. Analyze the customer data to answer questions.
+
+The dataset contains customer information with columns like:
+- customer_id, age, gender, total_spent, monthly_visits, satisfaction_score, churn, product_category
+
+CRITICAL ANALYSIS RULES:
+1. For "at risk" questions: Analyze customers with churn=0 who show warning signs (low satisfaction, declining visits, etc.)
+2. For "churned" questions: Analyze customers with churn=1 to understand why they left
+3. Always analyze PATTERNS across customer segments, not individual customers
+4. Use proper spacing in all text (no run-together words)
+5. Provide statistical significance and confidence levels when possible
+6. Focus on actionable insights for business segments
+
+Always:
+1. Look at the actual data patterns first
+2. Provide specific numbers, percentages, and statistical measures
+3. Explain what the numbers mean for different customer segments
+4. Give concrete, measurable recommendations with expected outcomes
+5. Use clear professional language with proper word spacing
+
+Keep your response clear, professional, and statistically rigorous.""",
+            max_iterations=10,
             early_stopping_method="force",
             allow_dangerous_code=True
         )
         
-        # Run analysis with enhanced question based on type
-        question_lower = question.lower()
-        
-        if "risk" in question_lower:
-            enhanced_question = f"""{question}
-
-CRITICAL: Analyze customers with churn=0 who show warning signs. Do NOT analyze individual customers by ID. 
-
-Find at-risk segments using realistic criteria like:
-- Low satisfaction (below 3.5 or in bottom 25%)
-- Low engagement (below median visits)  
-- Low spending (below median spending)
-- Demographic patterns that correlate with higher churn risk
-
-Provide segment-level patterns with sample sizes and statistical significance. If few customers meet strict criteria, use more realistic thresholds."""
-            
-        elif "segment" in question_lower:
-            enhanced_question = f"""{question}
-
-CRITICAL: Provide comprehensive customer segmentation by demographics, behavior, value, and risk. 
-Include segment sizes, characteristics, and business implications. Don't just list product categories."""
-            
-        else:
-            enhanced_question = f"""{question}
-
-Analyze customer patterns and segments with statistical rigor. Provide business insights and actionable recommendations."""
-        
-        # Run analysis
-        raw_result = agent.run(enhanced_question)
-        
-        # Fix text formatting issues
-        raw_result = fix_text_formatting(raw_result)
-        
-        # Validate result quality and add warnings if needed
-        if "risk" in question_lower and "CUST_" in raw_result:
-            raw_result = f"""⚠️ ANALYSIS QUALITY WARNING: This response analyzed individual customers instead of segments.
-
-{raw_result}
-
-📋 RECOMMENDED APPROACH: For at-risk analysis, focus on customer segments with specific characteristics (e.g., satisfaction < 3.0, visits < 5) rather than individual customer IDs."""
+        # Run analysis with the original question (don't over-complicate)
+        raw_result = agent.run(question)
         
         # Calculate duration
         duration = (datetime.now() - start_time).total_seconds()
@@ -440,7 +370,7 @@ CRITICAL ANALYSIS REQUIREMENTS:
 - For "at risk" questions: Analyze customers with churn=0 who show warning signs (low satisfaction, declining engagement, etc.). NEVER analyze individual customers - always provide segment-level patterns.
 - For "churned" questions: Analyze customers with churn=1 to understand patterns of why they left
 - For "segments" questions: Provide comprehensive segmentation by demographics, behavior, value, and risk levels
-- FORMATTING: CRITICAL - Always separate numbers and text with spaces. Write "customers spend $500" NOT "customersspend$500". Put spaces around dollar amounts: "$1,500, with revenue" NOT "$1,500,withrevenue". Use proper punctuation and spacing between all words.
+- FORMATTING: Always put spaces around numbers and text. Write "customers spend $500" NOT "customersspend$500". Use proper punctuation and spacing.
 - STATISTICAL RIGOR: Include confidence levels, sample sizes, and significance tests when possible
 - BUSINESS FOCUS: Provide actionable insights for customer segments with measurable expected outcomes
 
@@ -450,13 +380,7 @@ Provide:
 3. Business implications for different customer segments
 4. Specific, measurable recommendations with expected outcomes
 
-Use clear, professional language with proper spacing between all words.
-
-CRITICAL TEXT FORMATTING RULES:
-- Always put spaces around dollar amounts: "$1,500, with total revenue" NOT "$1,500,withtotalrevenue"
-- Separate numbers from text: "customers spend $500 on average" NOT "customersspend$500onaverage"  
-- Use proper punctuation and spacing between ALL words
-- Double-check that no words are run together without spaces"""
+Use clear, professional language with proper spacing between all words."""
         
         response = client.chat.completions.create(
             model="gpt-4o",
@@ -469,9 +393,6 @@ CRITICAL TEXT FORMATTING RULES:
         )
         
         result = response.choices[0].message.content
-        
-        # Post-process to fix any remaining formatting issues
-        result = fix_text_formatting(result)
         
         return f"""📊 CUSTOMER INTELLIGENCE ANALYSIS
 
