@@ -15,6 +15,14 @@ import random
 
 warnings.filterwarnings('ignore')
 
+# Page configuration - MUST be first Streamlit command
+st.set_page_config(
+    page_title="AI Customer Intelligence Agent",
+    page_icon="🤖",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
 # Import AI functionality with comprehensive error handling
 try:
     from ai_analyzer import (
@@ -33,14 +41,6 @@ except ImportError as e:
 except Exception as e:
     AI_AVAILABLE = False
     AI_IMPORT_ERROR = f"Unexpected error: {str(e)}"
-
-# Page configuration
-st.set_page_config(
-    page_title="AI Customer Intelligence Agent",
-    page_icon="🤖",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
 
 # Modern CSS styling
 st.markdown("""
