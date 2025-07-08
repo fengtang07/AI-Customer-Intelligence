@@ -157,7 +157,7 @@ def analyze_with_langchain_improved(question: str, df: pd.DataFrame, api_key: st
             max_tokens=2500
         )
         
-        # Create agent with simpler, clearer instructions
+        # Create agent with enhanced, specific instructions
         agent = create_pandas_dataframe_agent(
             llm,
             df,
@@ -168,13 +168,22 @@ def analyze_with_langchain_improved(question: str, df: pd.DataFrame, api_key: st
 The dataset contains customer information with columns like:
 - customer_id, age, gender, total_spent, monthly_visits, satisfaction_score, churn, product_category
 
-Always:
-1. Look at the actual data first
-2. Provide specific numbers and percentages
-3. Explain what the numbers mean for the business
-4. Give concrete recommendations
+CRITICAL ANALYSIS RULES:
+1. For "at risk" questions: Analyze customers with churn=0 who show warning signs (low satisfaction, declining visits, etc.)
+2. For "churned" questions: Analyze customers with churn=1 to understand why they left
+3. Always analyze PATTERNS across customer segments, not individual customers
+4. Use proper spacing in all text (no run-together words)
+5. Provide statistical significance and confidence levels when possible
+6. Focus on actionable insights for business segments
 
-Keep your response clear and professional.""",
+Always:
+1. Look at the actual data patterns first
+2. Provide specific numbers, percentages, and statistical measures
+3. Explain what the numbers mean for different customer segments
+4. Give concrete, measurable recommendations with expected outcomes
+5. Use clear professional language with proper word spacing
+
+Keep your response clear, professional, and statistically rigorous.""",
             max_iterations=10,
             early_stopping_method="force",
             allow_dangerous_code=True
@@ -336,19 +345,27 @@ Available columns: {', '.join(df.columns)}
 Sample records:
 {df.head(3).to_string()}"""
         
-        # Clean, simple prompt
+        # Enhanced prompt with specific instructions
         prompt = f"""You are a customer analytics consultant. Analyze this customer data and answer the question with specific insights and recommendations.
 
 {data_summary}
 
 Question: {question}
 
-Provide:
-1. Key findings with specific numbers
-2. Business implications  
-3. Actionable recommendations
+IMPORTANT ANALYSIS GUIDELINES:
+- If asked about "at risk" customers, identify patterns across ALL customers who haven't churned yet but show warning signs
+- If asked about "churned" customers, analyze those who have already left
+- Always use proper spacing in your response (no run-together text)
+- Provide statistical significance when possible
+- Focus on actionable segments, not individual customers
 
-Use clear, professional language without complex formatting."""
+Provide:
+1. Key findings with specific numbers and percentages
+2. Statistical insights with confidence levels where relevant
+3. Business implications for different customer segments
+4. Specific, measurable recommendations with expected outcomes
+
+Use clear, professional language with proper spacing between all words."""
         
         response = client.chat.completions.create(
             model="gpt-4o",
