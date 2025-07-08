@@ -12,10 +12,8 @@ import platform
 from typing import Dict, Any, Optional, List
 import warnings
 
-from enhanced_ai_analyzer import (
-    analyze_with_ai_enhanced,
-    create_business_focused_segments
-)
+# Disable enhanced analyzer to avoid formatting issues
+ENHANCED_AVAILABLE = False
 
 warnings.filterwarnings('ignore')
 
@@ -62,7 +60,7 @@ def test_ai_connection(api_key: str) -> Dict[str, Any]:
         client = OpenAI(api_key=api_key, timeout=30.0, max_retries=2)
         
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": "Say 'AI connection successful' if you can read this."}
@@ -76,7 +74,7 @@ def test_ai_connection(api_key: str) -> Dict[str, Any]:
         return {
             "success": True,
             "result": f"✅ Connection successful! Response: {result}",
-            "model": "gpt-3.5-turbo"
+            "model": "gpt-4o"
         }
 
     except Exception as e:
@@ -135,28 +133,10 @@ Always start by understanding the data structure, then answer the specific quest
 import re
 from datetime import datetime
 
-def format_agent_output(raw_output: str) -> str:
-    """Fix formatting issues in agent output"""
-    
-    # Fix run-together words
-    raw_output = re.sub(r'(\d+\.?\d*),\*?while', r'\1, while ', raw_output)
-    raw_output = re.sub(r'spend(\d+)', r'spend $\1', raw_output)
-    raw_output = re.sub(r'(\d+)\*?and\*?(\d+)', r'\1 and \2', raw_output)
-    
-    # Fix currency formatting
-    def format_currency(match):
-        amount = float(match.group(1))
-        return f'${amount:,.2f}'
-    
-    raw_output = re.sub(r'\$?(\d+\.?\d*)', format_currency, raw_output)
-    
-    # Remove asterisks
-    raw_output = raw_output.replace('*', '')
-    
-    return raw_output
+# Removed problematic format_agent_output function that was causing formatting issues
 
 def analyze_with_langchain_improved(question: str, df: pd.DataFrame, api_key: str, response_style: str = 'smart'):
-    """Improved version with better prompts and formatting"""
+    """Improved version with simpler, more reliable processing"""
     
     if not api_key:
         return "⚠️ No API key provided"
@@ -169,101 +149,57 @@ def analyze_with_langchain_improved(question: str, df: pd.DataFrame, api_key: st
         # Track start time
         start_time = datetime.now()
         
-        # Better model and temperature
+        # Use GPT-4 for better performance
         llm = ChatOpenAI(
             temperature=0,
             openai_api_key=api_key,
-            model="gpt-4" if "gpt-4" in api_key else "gpt-3.5-turbo",  # Use GPT-4 if available
-            max_tokens=3000
+            model="gpt-4o",
+            max_tokens=2500
         )
         
-        # Create agent with better instructions
+        # Create agent with simpler, clearer instructions
         agent = create_pandas_dataframe_agent(
             llm,
             df,
             agent_type=AgentType.OPENAI_FUNCTIONS,
             verbose=True,
-            prefix="""You are a senior data analyst. 
+            prefix="""You are a customer data analyst. Analyze the customer data to answer questions.
 
-CRITICAL FORMATTING RULES:
-- Format all currency with $ and commas: $1,234.56
-- Format all percentages with %: 45.3%
-- Use proper spacing between words
-- Use bullet points for lists
-- NO asterisks in output
+The dataset contains customer information with columns like:
+- customer_id, age, gender, total_spent, monthly_visits, satisfaction_score, churn, product_category
 
-For customer segments, use business-friendly names like:
-- "Budget Conscious" instead of "Low"
-- "Regular Shoppers" instead of "Medium"  
-- "Premium Customers" instead of "High"
-- "VIP Clients" instead of "Very High"
+Always:
+1. Look at the actual data first
+2. Provide specific numbers and percentages
+3. Explain what the numbers mean for the business
+4. Give concrete recommendations
 
-Always provide:
-1. Statistical findings
-2. Business insights
-3. Actionable recommendations""",
-            max_iterations=15,
+Keep your response clear and professional.""",
+            max_iterations=10,
             early_stopping_method="force",
             allow_dangerous_code=True
         )
         
-        # Enhance questions for better results
-        question_lower = question.lower()
-        
-        if "segment" in question_lower:
-            enhanced_q = f"""{question}
-
-Create meaningful business segments and for each segment provide:
-- Segment name (business-friendly)
-- Size and percentage of customers
-- Average metrics (spending, satisfaction, churn rate)
-- Key characteristics
-- Marketing recommendations"""
-            
-        elif "gender" in question_lower:
-            enhanced_q = f"""{question}
-
-Analyze gender differences including:
-- Spending patterns (with proper $ formatting)
-- Behavioral differences
-- Statistical significance
-- Business implications"""
-            
-        elif "spending" in question_lower:
-            enhanced_q = f"""{question}
-
-Analyze spending with:
-- Total revenue (formatted with $ and commas)
-- Customer value distribution
-- 80/20 analysis
-- Category breakdowns
-- Growth opportunities"""
-        else:
-            enhanced_q = question + "\n\nFormat all numbers properly and provide business insights."
-        
-        # Run analysis
-        raw_result = agent.run(enhanced_q)
-        
-        # Format the output
-        formatted_result = format_agent_output(raw_result)
+        # Run analysis with the original question (don't over-complicate)
+        raw_result = agent.run(question)
         
         # Calculate duration
         duration = (datetime.now() - start_time).total_seconds()
         
-        # Add analysis metadata
-        final_output = f"""📊 **CUSTOMER INTELLIGENCE ANALYSIS**
+        # Add analysis metadata without complex formatting
+        final_output = f"""📊 CUSTOMER INTELLIGENCE ANALYSIS
 
-{formatted_result}
+{raw_result}
 
 ---
-📈 **Analysis Details:**
+📈 Analysis Details:
 • Method: Pandas DataFrame Agent (Enhanced)
 • Model: {llm.model_name}
-• Data Points: {len(df):,} customers
+• Data Points: {len(df)} customers
 • Processing Time: {duration:.1f} seconds
 • Key Operations: groupby, aggregation, segmentation, statistical analysis
 
-💡 **Note**: This analysis used automated data exploration to identify patterns and generate insights."""
+💡 Note: This analysis used automated data exploration to identify patterns and generate insights."""
         
         return final_output
         
@@ -312,7 +248,7 @@ def get_better_segments(df: pd.DataFrame) -> dict:
     
 
 # MAIN FUNCTION: Keep the same interface
-def analyze_with_ai(question: str, df: pd.DataFrame, api_key: str, use_langchain: bool = True, response_style: str = 'smart'):
+def analyze_with_ai(question: str, df: pd.DataFrame, api_key: str, use_langchain: bool = False, response_style: str = 'smart'):
     """Main AI analysis function with improved implementation"""
     if not api_key:
         return "⚠️ Please enter your OpenAI API key to enable AI analysis."
@@ -320,9 +256,10 @@ def analyze_with_ai(question: str, df: pd.DataFrame, api_key: str, use_langchain
     if df is None or len(df) == 0:
         return "⚠️ No data available for analysis. Please upload a dataset first."
     
+    # Use Direct OpenAI by default for reliability
     if use_langchain:
         try:
-            return analyze_with_langchain(question, df, api_key, response_style)
+            return analyze_with_langchain_improved(question, df, api_key, response_style)
         except Exception as e:
             # Fall back to direct OpenAI if LangChain fails
             fallback_result = analyze_with_direct_openai(question, df, api_key, response_style)
@@ -372,11 +309,70 @@ def analyze_with_langchain(question: str, df: pd.DataFrame, api_key: str, respon
     try:
         return analyze_with_langchain_improved(question, df, api_key, response_style)
     except Exception as e:
-        return f"❌ LangChain analysis error: {str(e)}"
+        # Fallback to direct OpenAI instead of just showing error
+        return analyze_with_direct_openai(question, df, api_key, response_style)
 
 def analyze_with_direct_openai(question: str, df: pd.DataFrame, api_key: str, response_style: str = 'smart'):
-    """Direct OpenAI analysis - fallback to main AI function"""
+    """Direct OpenAI analysis with reliable prompting"""
     try:
-        return analyze_with_ai(question, df, api_key, use_langchain=False, response_style=response_style)
+        from openai import OpenAI
+        
+        client = OpenAI(api_key=api_key, timeout=30.0, max_retries=2)
+        
+        # Create clean data summary without complex formatting
+        total_customers = len(df)
+        total_revenue = df['total_spent'].sum() if 'total_spent' in df.columns else 0
+        avg_customer_value = df['total_spent'].mean() if 'total_spent' in df.columns else 0
+        churn_rate = df['churn'].mean() * 100 if 'churn' in df.columns else 0
+        
+        # Simple data summary
+        data_summary = f"""Customer Database Overview:
+Total Customers: {total_customers}
+Total Revenue: {total_revenue:.2f} dollars
+Average Customer Value: {avg_customer_value:.2f} dollars
+Churn Rate: {churn_rate:.1f} percent
+Available columns: {', '.join(df.columns)}
+
+Sample records:
+{df.head(3).to_string()}"""
+        
+        # Clean, simple prompt
+        prompt = f"""You are a customer analytics consultant. Analyze this customer data and answer the question with specific insights and recommendations.
+
+{data_summary}
+
+Question: {question}
+
+Provide:
+1. Key findings with specific numbers
+2. Business implications  
+3. Actionable recommendations
+
+Use clear, professional language without complex formatting."""
+        
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a senior customer analytics consultant. Provide clear, data-driven insights."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=1500,
+            temperature=0.1
+        )
+        
+        result = response.choices[0].message.content
+        
+        return f"""📊 CUSTOMER INTELLIGENCE ANALYSIS
+
+{result}
+
+---
+📈 Analysis Details:
+• Method: Direct OpenAI Analysis
+• Model: gpt-4o
+• Data Points: {len(df)} customers
+• Revenue Context: {total_revenue:.2f} dollars total customer value
+• Focus: Data-driven insights and recommendations"""
+        
     except Exception as e:
         return f"❌ Direct OpenAI analysis error: {str(e)}"

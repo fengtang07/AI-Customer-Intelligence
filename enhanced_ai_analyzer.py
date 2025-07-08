@@ -106,28 +106,20 @@ def create_enhanced_agent(api_key: str, df: pd.DataFrame, model: str = "gpt-4"):
         callbacks=[tool_tracker]
     )
     
-    # Enhanced system prompt
-    enhanced_prompt = """You are an expert data analyst working with customer data.
+    # Simplified system prompt - less demanding formatting
+    enhanced_prompt = """You are an expert customer data analyst.
 
-CRITICAL INSTRUCTIONS:
-1. ALWAYS format numbers properly with commas and currency symbols
-2. ALWAYS separate text properly (no run-together words)
-3. PROVIDE BUSINESS INSIGHTS, not just statistics
-4. STRUCTURE your response with clear sections
-5. For segments, use MEANINGFUL NAMES (not just Low/Medium/High)
+Your goals:
+1. Analyze the customer data to answer the specific question
+2. Provide clear business insights with specific numbers
+3. Use meaningful segment names (not just Low/Medium/High)
+4. Include actionable recommendations
 
-When analyzing segments:
-- Use business-friendly names like "Price-Conscious", "Regular Shoppers", "Premium Customers", "VIP Spenders"
-- Explain what makes each segment unique
-- Provide targeting recommendations
-
-When showing statistics:
-- Format currency: $1,234.56
-- Format percentages: 45.3%
-- Format counts: 1,234 customers
-- Use bullet points for clarity
-
-Always end with ACTIONABLE RECOMMENDATIONS."""
+When analyzing data:
+- Show actual numbers and percentages from the data
+- Explain what the numbers mean for the business
+- Suggest concrete next steps
+- Use clear, professional language"""
     
     # Create agent
     agent = create_pandas_dataframe_agent(
@@ -149,25 +141,21 @@ Always end with ACTIONABLE RECOMMENDATIONS."""
     return agent, tool_tracker
 
 def format_analysis_output(raw_output: str) -> str:
-    """Fix common formatting issues in the output"""
+    """Fix common formatting issues in the output - SIMPLIFIED VERSION"""
     
-    # Fix run-together words around currency
-    raw_output = re.sub(r'(\d+\.?\d*),\*?while', r'\1, while', raw_output)
-    raw_output = re.sub(r'(\d+\.?\d*)\*?and\*?(\d+\.?\d*)', r'\1 and \2', raw_output)
-    
-    # Fix currency formatting
-    raw_output = re.sub(r'\$(\d+)\.(\d+)', lambda m: f'${int(m.group(1)):,}.{m.group(2)}', raw_output)
-    
-    # Fix percentages
-    raw_output = re.sub(r'(\d+\.?\d*)%', r'\1%', raw_output)
-    
-    # Remove weird asterisks
+    # Only do minimal, safe formatting to avoid breaking the output
+    # Remove asterisks and markdown artifacts
     raw_output = raw_output.replace('*', '')
+    raw_output = raw_output.replace('**', '')
     
-    # Add proper line breaks
-    raw_output = raw_output.replace('. ', '.\n')
+    # Fix obvious spacing issues only
+    raw_output = re.sub(r'(\d+)([a-zA-Z])', r'\1 \2', raw_output)  # Add space between numbers and letters
+    raw_output = re.sub(r'([a-zA-Z])(\d+)', r'\1 \2', raw_output)  # Add space between letters and numbers
     
-    return raw_output
+    # Clean up multiple spaces
+    raw_output = re.sub(r'\s+', ' ', raw_output)
+    
+    return raw_output.strip()
 
 def analyze_with_enhanced_agent(
     question: str, 
@@ -187,48 +175,21 @@ def analyze_with_enhanced_agent(
         # Enhance the question based on type
         question_lower = question.lower()
         
-        # Question-specific enhancements
+        # Keep question enhancement simple to avoid confusion
         if "segment" in question_lower:
-            enhanced_question = f"""{question}
-
-Please:
-1. Create meaningful customer segments (e.g., "Budget Shoppers", "Regular Customers", "Premium Buyers", "VIP Clients")
-2. Show segment sizes and percentages
-3. Describe each segment's characteristics (spending, behavior, demographics)
-4. Provide specific targeting strategies for each segment
-5. Format all numbers properly with commas and currency symbols"""
+            enhanced_question = f"{question}\n\nCreate meaningful customer segments and analyze their characteristics, sizes, and business implications."
 
         elif "gender" in question_lower:
-            enhanced_question = f"""{question}
+            enhanced_question = f"{question}\n\nAnalyze gender differences in spending, behavior, satisfaction, and churn rates with specific numbers."
 
-Please analyze gender differences across:
-1. Average spending (formatted as currency)
-2. Purchase frequency
-3. Satisfaction levels
-4. Churn rates
-5. Product preferences
-6. Statistical significance of differences
-7. Business implications and recommendations"""
+        elif "spending" in question_lower or "pattern" in question_lower or "value" in question_lower:
+            enhanced_question = f"{question}\n\nAnalyze customer spending patterns, total revenue, customer value distribution, and identify business opportunities."
 
-        elif "spending" in question_lower or "pattern" in question_lower:
-            enhanced_question = f"""{question}
-
-Analyze spending patterns including:
-1. Total revenue (properly formatted)
-2. Customer lifetime value distribution
-3. Spending by segments/categories
-4. Pareto analysis (80/20 rule)
-5. Seasonal or temporal patterns
-6. Recommendations to increase revenue"""
+        elif "risk" in question_lower:
+            enhanced_question = f"{question}\n\nIdentify at-risk customers, analyze churn patterns, and provide specific numbers and retention recommendations."
 
         else:
-            enhanced_question = f"""{question}
-
-Provide a comprehensive analysis with:
-1. Key findings (with properly formatted numbers)
-2. Statistical insights
-3. Business implications
-4. Actionable recommendations"""
+            enhanced_question = f"{question}\n\nProvide a data-driven analysis with specific numbers and actionable business recommendations."
         
         # Run analysis
         result = agent.run(enhanced_question)
@@ -451,13 +412,13 @@ Format numbers properly and ensure clear, professional presentation.
 """
         
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are a senior business analyst providing executive-level insights."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0,
-            max_tokens=1500
+            max_tokens=2000
         )
         
         result = response.choices[0].message.content
