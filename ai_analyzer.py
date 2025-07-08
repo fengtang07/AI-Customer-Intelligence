@@ -161,40 +161,82 @@ def analyze_with_langchain_improved(question: str, df: pd.DataFrame, api_key: st
             }
         )
         
-        # Create agent with enhanced, specific instructions
+        # Create agent with enhanced, specific instructions matching Direct OpenAI
+        enhanced_prefix = f"""You are a customer data analyst. Your job is to analyze customer data patterns and provide business insights.
+
+Dataset Overview: {len(df):,} customers
+Columns available: {', '.join(df.columns)}
+
+CRITICAL ANALYSIS REQUIREMENTS - FOLLOW EXACTLY:
+
+For "at risk" questions:
+- Analyze customers with churn=0 who show warning signs (low satisfaction < 3.0, declining engagement, etc.)
+- NEVER analyze individual customers by ID - always analyze PATTERNS across customer segments
+- Identify segments like "customers with satisfaction < 3.0 AND visits < 5"
+- Provide statistical significance and sample sizes
+
+For "segments" questions:
+- Provide comprehensive segmentation by demographics, behavior, value, and risk levels
+- Include segment sizes, characteristics, and business implications
+- Don't just list product categories - create meaningful business segments
+
+For all questions:
+- Use proper spacing in text (write "customers spend $500" NOT "customersspend$500")
+- Include confidence levels and statistical tests when possible
+- Focus on actionable insights for customer segments with measurable outcomes
+- Provide specific numbers, percentages, and dollar amounts
+- Give business implications and concrete recommendations
+
+RESPONSE FORMAT:
+1. Key findings with specific statistics
+2. Segment analysis with sample sizes
+3. Statistical insights with confidence levels
+4. Business implications for each segment
+5. Actionable recommendations with expected outcomes
+
+Remember: ALWAYS analyze customer segments and patterns, NEVER individual customers."""
+        
         agent = create_pandas_dataframe_agent(
             llm,
             df,
             agent_type=AgentType.OPENAI_FUNCTIONS,
             verbose=True,
-            prefix="""You are a customer data analyst. Analyze the customer data to answer questions.
-
-The dataset contains customer information with columns like:
-- customer_id, age, gender, total_spent, monthly_visits, satisfaction_score, churn, product_category
-
-CRITICAL ANALYSIS RULES:
-1. For "at risk" questions: Analyze customers with churn=0 who show warning signs (low satisfaction, declining visits, etc.)
-2. For "churned" questions: Analyze customers with churn=1 to understand why they left
-3. Always analyze PATTERNS across customer segments, not individual customers
-4. Use proper spacing in all text (no run-together words)
-5. Provide statistical significance and confidence levels when possible
-6. Focus on actionable insights for business segments
-
-Always:
-1. Look at the actual data patterns first
-2. Provide specific numbers, percentages, and statistical measures
-3. Explain what the numbers mean for different customer segments
-4. Give concrete, measurable recommendations with expected outcomes
-5. Use clear professional language with proper word spacing
-
-Keep your response clear, professional, and statistically rigorous.""",
-            max_iterations=10,
+            prefix=enhanced_prefix,
+            max_iterations=8,
             early_stopping_method="force",
             allow_dangerous_code=True
         )
         
-        # Run analysis with the original question (don't over-complicate)
-        raw_result = agent.run(question)
+        # Run analysis with enhanced question based on type
+        question_lower = question.lower()
+        
+        if "risk" in question_lower:
+            enhanced_question = f"""{question}
+
+CRITICAL: Analyze customers with churn=0 who show warning signs. Do NOT analyze individual customers by ID. 
+Provide segment-level patterns like "customers with satisfaction < 3.0 AND visits < 5" with sample sizes and statistical significance."""
+            
+        elif "segment" in question_lower:
+            enhanced_question = f"""{question}
+
+CRITICAL: Provide comprehensive customer segmentation by demographics, behavior, value, and risk. 
+Include segment sizes, characteristics, and business implications. Don't just list product categories."""
+            
+        else:
+            enhanced_question = f"""{question}
+
+Analyze customer patterns and segments with statistical rigor. Provide business insights and actionable recommendations."""
+        
+        # Run analysis
+        raw_result = agent.run(enhanced_question)
+        
+        # Validate result quality and add warnings if needed
+        if "risk" in question_lower and "CUST_" in raw_result:
+            raw_result = f"""⚠️ ANALYSIS QUALITY WARNING: This response analyzed individual customers instead of segments.
+
+{raw_result}
+
+📋 RECOMMENDED APPROACH: For at-risk analysis, focus on customer segments with specific characteristics (e.g., satisfaction < 3.0, visits < 5) rather than individual customer IDs."""
         
         # Calculate duration
         duration = (datetime.now() - start_time).total_seconds()
