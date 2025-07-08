@@ -19,8 +19,25 @@ ENHANCED_AVAILABLE = True
 
 warnings.filterwarnings('ignore')
 
-# Set environment variable
-os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+def get_openai_api_key():
+    """Get OpenAI API key from Streamlit secrets or environment variables"""
+    try:
+        # First try to get from Streamlit secrets
+        import streamlit as st
+        if hasattr(st, 'secrets') and 'OPENAI_API_KEY' in st.secrets:
+            return st.secrets['OPENAI_API_KEY']
+    except Exception:
+        pass
+    
+    # Fall back to environment variable
+    return os.environ.get('OPENAI_API_KEY', None)
+
+# Get the API key
+OPENAI_API_KEY = get_openai_api_key()
+
+# Set environment variable if we have a key
+if OPENAI_API_KEY:
+    os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 
 # LangGraph State Definition
 class GraphState(TypedDict):
