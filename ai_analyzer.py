@@ -133,7 +133,25 @@ Always start by understanding the data structure, then answer the specific quest
 import re
 from datetime import datetime
 
-# Removed problematic format_agent_output function that was causing formatting issues
+def fix_text_formatting(text: str) -> str:
+    """Fix common text formatting issues"""
+    import re
+    
+    # Fix run-together numbers and text
+    text = re.sub(r'(\d+\.?\d*),([a-zA-Z])', r'\1, \2', text)  # Add space after comma+number
+    text = re.sub(r'(\d+\.?\d*)([a-zA-Z])', r'\1 \2', text)    # Add space between number and letter
+    text = re.sub(r'([a-zA-Z])(\d+\.?\d*)', r'\1 \2', text)    # Add space between letter and number
+    
+    # Fix specific problematic patterns
+    text = re.sub(r'\$(\d+\.?\d*),with', r'$\1, with', text)
+    text = re.sub(r'(\d+\.?\d*),with', r'\1, with', text)
+    text = re.sub(r'amountingto\$', r'amounting to $', text)
+    text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)  # Add space between lowercase and uppercase
+    
+    # Clean up multiple spaces
+    text = re.sub(r'\s+', ' ', text)
+    
+    return text.strip()
 
 def analyze_with_langchain_improved(question: str, df: pd.DataFrame, api_key: str, response_style: str = 'smart'):
     """Improved version with simpler, more reliable processing"""
@@ -214,7 +232,14 @@ Remember: ALWAYS analyze customer segments and patterns, NEVER individual custom
             enhanced_question = f"""{question}
 
 CRITICAL: Analyze customers with churn=0 who show warning signs. Do NOT analyze individual customers by ID. 
-Provide segment-level patterns like "customers with satisfaction < 3.0 AND visits < 5" with sample sizes and statistical significance."""
+
+Find at-risk segments using realistic criteria like:
+- Low satisfaction (below 3.5 or in bottom 25%)
+- Low engagement (below median visits)  
+- Low spending (below median spending)
+- Demographic patterns that correlate with higher churn risk
+
+Provide segment-level patterns with sample sizes and statistical significance. If few customers meet strict criteria, use more realistic thresholds."""
             
         elif "segment" in question_lower:
             enhanced_question = f"""{question}
@@ -229,6 +254,9 @@ Analyze customer patterns and segments with statistical rigor. Provide business 
         
         # Run analysis
         raw_result = agent.run(enhanced_question)
+        
+        # Fix text formatting issues
+        raw_result = fix_text_formatting(raw_result)
         
         # Validate result quality and add warnings if needed
         if "risk" in question_lower and "CUST_" in raw_result:
@@ -412,7 +440,7 @@ CRITICAL ANALYSIS REQUIREMENTS:
 - For "at risk" questions: Analyze customers with churn=0 who show warning signs (low satisfaction, declining engagement, etc.). NEVER analyze individual customers - always provide segment-level patterns.
 - For "churned" questions: Analyze customers with churn=1 to understand patterns of why they left
 - For "segments" questions: Provide comprehensive segmentation by demographics, behavior, value, and risk levels
-- FORMATTING: Always put spaces around numbers and text. Write "customers spend $500" NOT "customersspend$500". Use proper punctuation and spacing.
+- FORMATTING: CRITICAL - Always separate numbers and text with spaces. Write "customers spend $500" NOT "customersspend$500". Put spaces around dollar amounts: "$1,500, with revenue" NOT "$1,500,withrevenue". Use proper punctuation and spacing between all words.
 - STATISTICAL RIGOR: Include confidence levels, sample sizes, and significance tests when possible
 - BUSINESS FOCUS: Provide actionable insights for customer segments with measurable expected outcomes
 
@@ -422,7 +450,13 @@ Provide:
 3. Business implications for different customer segments
 4. Specific, measurable recommendations with expected outcomes
 
-Use clear, professional language with proper spacing between all words."""
+Use clear, professional language with proper spacing between all words.
+
+CRITICAL TEXT FORMATTING RULES:
+- Always put spaces around dollar amounts: "$1,500, with total revenue" NOT "$1,500,withtotalrevenue"
+- Separate numbers from text: "customers spend $500 on average" NOT "customersspend$500onaverage"  
+- Use proper punctuation and spacing between ALL words
+- Double-check that no words are run together without spaces"""
         
         response = client.chat.completions.create(
             model="gpt-4o",
@@ -435,6 +469,9 @@ Use clear, professional language with proper spacing between all words."""
         )
         
         result = response.choices[0].message.content
+        
+        # Post-process to fix any remaining formatting issues
+        result = fix_text_formatting(result)
         
         return f"""📊 CUSTOMER INTELLIGENCE ANALYSIS
 
