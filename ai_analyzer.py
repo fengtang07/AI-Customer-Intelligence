@@ -149,12 +149,16 @@ def analyze_with_langchain_improved(question: str, df: pd.DataFrame, api_key: st
         # Track start time
         start_time = datetime.now()
         
-        # Use GPT-4 for better performance
+        # Use GPT-4 with specific formatting controls
         llm = ChatOpenAI(
             temperature=0,
             openai_api_key=api_key,
             model="gpt-4o",
-            max_tokens=2500
+            max_tokens=2500,
+            model_kwargs={
+                "frequency_penalty": 0.1,  # Reduce repetitive text
+                "presence_penalty": 0.1    # Encourage diverse responses
+            }
         )
         
         # Create agent with enhanced, specific instructions
@@ -256,7 +260,7 @@ def get_better_segments(df: pd.DataFrame) -> dict:
     return segments
     
 
-# MAIN FUNCTION: Keep the same interface
+# MAIN FUNCTION: Use Direct OpenAI as default for better results
 def analyze_with_ai(question: str, df: pd.DataFrame, api_key: str, use_langchain: bool = False, response_style: str = 'smart'):
     """Main AI analysis function with improved implementation"""
     if not api_key:
@@ -334,15 +338,25 @@ def analyze_with_direct_openai(question: str, df: pd.DataFrame, api_key: str, re
         avg_customer_value = df['total_spent'].mean() if 'total_spent' in df.columns else 0
         churn_rate = df['churn'].mean() * 100 if 'churn' in df.columns else 0
         
-        # Simple data summary
+        # Enhanced data summary with proper formatting
+        churned_count = df['churn'].sum() if 'churn' in df.columns else 0
+        active_count = len(df) - churned_count if 'churn' in df.columns else len(df)
+        sat_min = df['satisfaction_score'].min() if 'satisfaction_score' in df.columns else 0
+        sat_max = df['satisfaction_score'].max() if 'satisfaction_score' in df.columns else 0
+        
         data_summary = f"""Customer Database Overview:
-Total Customers: {total_customers}
-Total Revenue: {total_revenue:.2f} dollars
-Average Customer Value: {avg_customer_value:.2f} dollars
-Churn Rate: {churn_rate:.1f} percent
+Total Customers: {total_customers:,}
+Total Revenue: ${total_revenue:,.2f}
+Average Customer Value: ${avg_customer_value:.2f}
+Churn Rate: {churn_rate:.1f}%
 Available columns: {', '.join(df.columns)}
 
-Sample records:
+Key Statistics:
+- Customers who have churned: {churned_count}
+- Active customers: {active_count}
+- Satisfaction range: {sat_min:.1f} to {sat_max:.1f}
+
+Sample of first 3 customer records:
 {df.head(3).to_string()}"""
         
         # Enhanced prompt with specific instructions
@@ -352,12 +366,13 @@ Sample records:
 
 Question: {question}
 
-IMPORTANT ANALYSIS GUIDELINES:
-- If asked about "at risk" customers, identify patterns across ALL customers who haven't churned yet but show warning signs
-- If asked about "churned" customers, analyze those who have already left
-- Always use proper spacing in your response (no run-together text)
-- Provide statistical significance when possible
-- Focus on actionable segments, not individual customers
+CRITICAL ANALYSIS REQUIREMENTS:
+- For "at risk" questions: Analyze customers with churn=0 who show warning signs (low satisfaction, declining engagement, etc.). NEVER analyze individual customers - always provide segment-level patterns.
+- For "churned" questions: Analyze customers with churn=1 to understand patterns of why they left
+- For "segments" questions: Provide comprehensive segmentation by demographics, behavior, value, and risk levels
+- FORMATTING: Always put spaces around numbers and text. Write "customers spend $500" NOT "customersspend$500". Use proper punctuation and spacing.
+- STATISTICAL RIGOR: Include confidence levels, sample sizes, and significance tests when possible
+- BUSINESS FOCUS: Provide actionable insights for customer segments with measurable expected outcomes
 
 Provide:
 1. Key findings with specific numbers and percentages
