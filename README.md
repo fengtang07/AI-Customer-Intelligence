@@ -2,6 +2,9 @@
 
 A comprehensive customer analytics platform built with Streamlit that provides automated data generation, advanced analytics, and AI-powered insights for e-commerce businesses.
 
+Check out the live demo:
+🔗 https://ai-customer-intelligence-42k9kvbe8ga3mcvuleskj8.streamlit.app/
+
 ## Features
 
 ### Data Generation & Visualization
