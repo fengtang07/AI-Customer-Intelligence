@@ -1,7 +1,7 @@
 # ai_analyzer.py - Enhanced AI Analysis Module with LangGraph
 """
 AI Customer Intelligence Agent - Enhanced AI Analysis Module
-Now includes LangGraph-based multi-step analysis workflow
+Now includes LangGraph-based multi-step analysis workflow with improved reliability.
 """
 
 import pandas as pd
@@ -35,6 +35,7 @@ def get_openai_api_key():
         return env_key
     
     # Final fallback - hardcoded key for testing
+    # return "YOUR_FALLBACK_API_KEY_HERE" 
 
 # Get the API key
 OPENAI_API_KEY = get_openai_api_key()
@@ -76,7 +77,8 @@ NumPy Version: {np.__version__}
             'langchain': 'LangChain Framework',
             'langchain_openai': 'LangChain OpenAI',
             'langgraph': 'LangGraph',
-            'streamlit': 'Streamlit'
+            'streamlit': 'Streamlit',
+            'tabulate': 'Tabulate'
         }
 
         for package, description in packages.items():
@@ -216,7 +218,6 @@ Example usage: df.describe(), df['churn'].mean(), df.groupby('gender')['churn'].
             try:
                 print("🔍 STEP 2: Data Analysis Execution - Running statistical analysis...")
                 
-                # Execute analysis based on the plan and user question
                 analysis_prompt = f"""
                 Execute this comprehensive analysis plan: {state['plan']}
                 
@@ -231,16 +232,23 @@ Example usage: df.describe(), df['churn'].mean(), df.groupby('gender')['churn'].
                 3. Identify customer segments with df.groupby() operations
                 4. Calculate business metrics like df['churn'].mean() for churn rate
                 5. Provide specific numbers, percentages, and statistical measures
-                6. Focus on actionable business intelligence insights
                 
-                Dataset overview: {len(df)} customers with {len(df.columns)} attributes
-                Available columns: {', '.join(df.columns)}
+                ---
+                **CRITICAL FINAL INSTRUCTION:**
+                After performing all necessary calculations and data manipulations, you MUST conclude your response with a comprehensive, multi-paragraph textual summary of your findings.
+                - Explain what the data and your calculations mean.
+                - Address the original user question directly.
+                - **Do NOT end your response with raw code output, a list, or a raw data table.** Your final output must be a well-written summary.
+                ---
                 
                 Start your analysis with: df.head() and df.describe()
                 """
                 
-                print("⚙️ Executing pandas agent analysis...")
-                result = pandas_agent.run(analysis_prompt)
+                print("⚙️ Executing pandas agent analysis with .invoke...")
+                # The .invoke method returns a dictionary, the answer is in the 'output' key.
+                response_dict = pandas_agent.invoke({"input": analysis_prompt})
+                result = response_dict.get('output', 'No output found.')
+
                 print(f"✅ Analysis completed: {len(result)} characters of insights generated")
                 
                 return {
@@ -261,22 +269,24 @@ Example usage: df.describe(), df['churn'].mean(), df.groupby('gender')['churn'].
             """Validates the analysis results with comprehensive quality checks"""
             print("✅ STEP 3: Quality Validation - Checking analysis integrity...")
             
-            if not state.get('retrieved_data') or len(state['retrieved_data']) == 0:
+            last_result = state.get('retrieved_data', [])[-1] if state.get('retrieved_data') else ""
+
+            if not last_result:
                 print("❌ Validation failed: No analysis results found")
                 return {
                     "error_log": state.get("error_log", []) + ["No analysis results to validate"],
                     "retry_count": state.get("retry_count", 0) + 1
                 }
                 
-            # Check for error indicators in the results
-            last_result = state['retrieved_data'][-1] if state['retrieved_data'] else ""
-            
             # Enhanced validation checks
+            is_descriptive = "summary" in last_result.lower() or "finding" in last_result.lower()
+            is_not_raw_data = "dtype: float64" not in last_result and "Name: count" not in last_result
+            
             validation_checks = {
-                "has_data": len(last_result) > 100,
-                "no_errors": not any(error_term in last_result.lower() for error_term in ['error', 'failed', 'exception']),
+                "sufficient_length": len(last_result) > 200,
+                "no_errors": "error" not in last_result.lower() and "failed" not in last_result.lower(),
                 "has_numbers": any(char.isdigit() for char in last_result),
-                "sufficient_length": len(last_result) > 200
+                "is_descriptive_prose": is_descriptive and is_not_raw_data
             }
             
             passed_checks = sum(validation_checks.values())
@@ -284,8 +294,8 @@ Example usage: df.describe(), df['churn'].mean(), df.groupby('gender')['churn'].
             
             print(f"🔍 Validation checks: {passed_checks}/{total_checks} passed")
             
-            if passed_checks < 3:  # Require at least 3/4 checks to pass
-                print("❌ Validation failed: Insufficient quality")
+            if passed_checks < 3:
+                print(f"❌ Validation failed: Insufficient quality. Preview: {last_result[:150]}...")
                 return {
                     "error_log": state.get("error_log", []) + [f"Analysis quality insufficient: {last_result[:100]}"],
                     "retry_count": state.get("retry_count", 0) + 1
@@ -587,7 +597,8 @@ ANALYSIS REQUIREMENTS:
         )
         
         # Run analysis
-        raw_result = agent.run(question)
+        response_dict = agent.invoke({"input": question})
+        raw_result = response_dict.get('output', 'Analysis failed to produce an output.')
         
         # Calculate duration
         duration = (datetime.now() - start_time).total_seconds()
@@ -725,4 +736,4 @@ if __name__ == "__main__":
     print("🔧 Enhanced AI Analyzer Module with LangGraph")
     print("Debug Environment:")
     print(debug_environment())
-    print(f"\n✅ Module loaded successfully. API key configured: {OPENAI_API_KEY[:20]}...")
+    print(f"\n✅ Module loaded successfully. API key configured: {OPENAI_API_KEY is not None}")
